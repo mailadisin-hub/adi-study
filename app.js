@@ -634,22 +634,22 @@ function renderSparkline(){
   const svg = document.getElementById('sparkline');
   if (!svg) return;
   const today = new Date(); today.setHours(0,0,0,0);
-  const weeks = [];
-  for (let i = 11; i >= 0; i--) {
-    const wEnd = new Date(today); wEnd.setDate(today.getDate() - i*7);
-    const wStart = new Date(wEnd); wStart.setDate(wEnd.getDate() - 6);
-    let minutes = 0;
-    for (let d = new Date(wStart); d <= wEnd; d.setDate(d.getDate()+1)) {
-      minutes += state.dayMinutes[dayKey(d)] || 0;
-    }
-    weeks.push(minutes / 60);
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    days.push((state.dayMinutes[dayKey(d)] || 0) / 60);
   }
-  const max = Math.max(1, ...weeks);
-  const W = 300, H = 60;
-  const stepX = W / (weeks.length - 1);
-  const points = weeks.map((h, i) => [i*stepX, H - (h/max)*(H-6) - 3]);
+  const avg = days.reduce((a,b) => a+b, 0) / days.length;
+  const max = Math.max(0.5, ...days, avg * 1.4);
+  const W = 300, H = 80, P = 8;
+  const stepX = (W - 2*P) / (days.length - 1);
+  const yFor = h => H - P - (h / max) * (H - 2*P);
+  const points = days.map((h, i) => [P + i*stepX, yFor(h)]);
   const path = points.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  const area = path + ` L${W},${H} L0,${H} Z`;
+  const area = path + ` L${W-P},${H-P} L${P},${H-P} Z`;
+  const avgY = yFor(avg);
+  const labelOnTop = avgY > 18;
+  const labelY = labelOnTop ? avgY - 5 : avgY + 12;
   svg.innerHTML = `
     <defs>
       <linearGradient id="slGrad" x1="0" y1="0" x2="0" y2="1">
@@ -658,20 +658,19 @@ function renderSparkline(){
       </linearGradient>
     </defs>
     <path d="${area}" fill="url(#slGrad)"/>
+    <line x1="${P}" y1="${avgY.toFixed(1)}" x2="${W-P}" y2="${avgY.toFixed(1)}"
+          stroke="var(--gold)" stroke-width="1.2" stroke-dasharray="4 4" opacity=".75"/>
     <path d="${path}" stroke="var(--accent-hot)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    ${points.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="var(--accent-hot)"/>`).join('')}
+    ${points.map((p,i) => {
+      const isToday = i === points.length - 1;
+      return `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${isToday?3.5:2.5}" fill="${isToday?'var(--gold)':'var(--accent-hot)'}"/>`;
+    }).join('')}
+    <text x="${W - P - 2}" y="${labelY.toFixed(1)}" text-anchor="end"
+          fill="var(--gold)" font-family="Inter,sans-serif" font-size="10" font-weight="700">
+      Avg ${avg.toFixed(1)}h
+    </text>
   `;
-  const thisWeek = weeks[weeks.length-1];
-  const lastWeek = weeks[weeks.length-2] || 0;
-  document.getElementById('sl-week').textContent = thisWeek.toFixed(1) + 'h';
-  const trendEl = document.getElementById('sl-trend');
-  if (lastWeek > 0) {
-    const diff = thisWeek - lastWeek;
-    trendEl.textContent = (diff >= 0 ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(1) + 'h';
-    trendEl.className = 'sl-trend ' + (diff >= 0 ? 'up' : 'down');
-  } else {
-    trendEl.textContent = ''; trendEl.className = 'sl-trend';
-  }
+  document.getElementById('sl-avg').textContent = avg.toFixed(1) + 'h';
 }
 
 /* =========================================================================
