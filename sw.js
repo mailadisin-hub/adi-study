@@ -4,8 +4,8 @@
    Firebase requests pass through (no cache).
    ========================================================================= */
 
-const CACHE = 'adi-study-v1';
-const SHELL = ['./', 'index.html', 'app.js', 'firebase-config.js', 'manifest.json'];
+const CACHE = 'adi-study-v2';
+const SHELL = ['./', 'index.html', 'app.js', 'firebase-config.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
