@@ -7,6 +7,51 @@ const TOPICS = {
   fm: ['Complex Numbers','Matrices & Eigenvalues','Invariant Lines','Polar Coordinates','Proof by Induction','Hyperbolic Functions','Further Calculus','Reduction Formulae','Maclaurin Series','2nd Order DEs','Vectors & Planes 3D','FM Statistics'],
   phys: ['Gravitational Fields','Simple Harmonic Motion','Thermal Physics','Electric Fields','Capacitors','Magnetic Fields','Electromagnetic Induction','Nuclear Physics','Astrophysics','Quantum & de Broglie']
 };
+
+const SUBTOPICS = {
+  maths: [
+    ['Modulus equations & inequalities','Composite functions f∘g','Inverse functions & their graphs','Domain and range restrictions','Graphs of |f(x)| and f(|x|)','Combined graph transformations'],
+    ['Sigma notation Σ','Arithmetic series & sum formula','Geometric series & sum to infinity','Convergence condition |r|<1','Recurrence relations','Modelling with sequences'],
+    ['(1+x)ⁿ for fractional/negative n','Validity range |x|<1','Generalising (a+bx)ⁿ form','Using expansions for approximations','Combining with partial fractions'],
+    ['Reciprocal trig sec, cosec, cot','Pythagorean identities (1+tan²=sec² etc.)','Compound angle formulae','Double & half angle formulae','R cos(x±α) / R sin(x±α) form','Solving trig equations'],
+    ['dy/dx via parameter (chain rule)','Tangents & normals to parametric curves','Converting parametric ↔ Cartesian','Areas under parametric curves','Modelling motion with parametrics'],
+    ['Differentiating implicit functions','Combined product & chain rule','Tangents/normals to implicit curves','Logarithmic differentiation','Second derivatives implicitly'],
+    ['Choosing a substitution','Definite integrals: changing limits','Trig substitutions (sin, tan)','Recognising reverse chain rule','Substitutions with √(a²-x²) etc.'],
+    ['Choosing u and dv (ILATE rule)','Standard: xeˣ, x sinx, x lnx','Repeated IBP (x² sinx etc.)','Cyclic IBP (eˣ sinx)','Definite integrals with IBP','IBP for ∫ln(x), ∫arctan(x)'],
+    ['Distinct linear factors','Repeated linear factors','Quadratic factor in denominator','Improper rational fractions','Using partial fractions in integration'],
+    ['Around the x-axis ∫πy² dx','Around the y-axis ∫πx² dy','Parametric volumes','Setting limits correctly','Hollow / annular solids'],
+    ['Separable variables method','First-order linear DEs','Forming DEs from situations','Boundary / initial conditions','Exponential growth/decay models','Newton\'s law of cooling'],
+    ['Position vs displacement vectors','Magnitude & unit vectors','Scalar (dot) product a·b','Angle between vectors','Vector equation of a line in 3D','Parallel / intersecting / skew lines'],
+    ['Normal distribution N(μ,σ²)','Standardising Z=(X-μ)/σ','Inverse normal lookups','Hypothesis test for mean','Type I and Type II errors','Correlation & PMCC interpretation'],
+    ['Variable acceleration via calculus','v=ds/dt, a=dv/dt','Forces in 2D & resultants','Friction & inclined planes','Projectile motion (full path)','Moments and equilibrium of rigid bodies'],
+  ],
+  fm: [
+    ['Argand diagram representation','Modulus-argument form r(cosθ+isinθ)','de Moivre\'s theorem','nᵗʰ roots of unity','Loci on the Argand diagram','Complex roots of real polynomials'],
+    ['2×2 and 3×3 matrix operations','Determinants & properties','Inverse matrices','Solving linear systems with matrices','Eigenvalues & eigenvectors','Diagonalisation P⁻¹AP=D','Cayley-Hamilton theorem'],
+    ['Invariant points under transformations','Invariant lines (point-wise vs setwise)','Connection to eigenvectors','Finding invariant lines algebraically'],
+    ['Polar ↔ Cartesian conversion','Sketching r = f(θ) curves','Tangents at the pole','Area enclosed by polar curve','Intersections of two polar curves'],
+    ['Standard series proofs','Divisibility proofs','Matrix-power induction','Inequality proofs by induction','Recurrence-relation induction'],
+    ['Definitions: sinh, cosh, tanh','Identity cosh²x - sinh²x = 1','Inverse hyperbolics (arsinh etc.)','Differentiating hyperbolic functions','Integrating hyperbolic functions','Solving hyperbolic equations'],
+    ['Mean value of a function','Arc length of a curve','Surface area of revolution','Improper integrals (infinite limits)','Improper integrals (singular point)'],
+    ['Deriving a reduction formula','Sequential application','Common forms ∫sinⁿx, ∫xⁿeˣ','Reduction with definite integrals','Combining reduction with IBP'],
+    ['Standard expansions (eˣ, sinx, cosx, ln(1+x))','General (1+x)ⁿ series','Range of validity','Composing series (e^(sinx) etc.)','Using series for approximations'],
+    ['Homogeneous DEs & auxiliary equation','Real distinct / repeated / complex roots','Particular integral (trial functions)','General solution = CF + PI','Boundary / initial conditions','Damped oscillation modelling'],
+    ['Vector & Cartesian equation of a plane','Scalar form r·n = d','Line–plane intersection','Angle between two planes','Distance from point to plane','Shortest distance between skew lines'],
+    ['Continuous random variables (PDF/CDF)','Expectation & variance of continuous','Chi-squared goodness of fit','Chi-squared contingency tables','Type I / II errors in detail','Conditional probability & Bayes'],
+  ],
+  phys: [
+    ['Newton\'s law F = GMm/r²','Field strength g = GM/r²','Gravitational potential V = -GM/r','Escape velocity derivation','Satellite orbits & Kepler\'s 3rd law','Geostationary orbits'],
+    ['Defining equation a = -ω²x','Solutions x = A cos(ωt+φ)','Pendulum & mass-spring period','Energy in SHM (KE↔PE exchange)','Damping: light / heavy / critical','Resonance & driven oscillations'],
+    ['Internal energy & temperature','Specific heat capacity Q = mcΔT','Specific latent heat (fusion & vaporisation)','Ideal gas equation pV = nRT','Kinetic theory ½mc̄² = (3/2)kT','Boltzmann distribution intuition'],
+    ['Coulomb\'s law F = Qq/(4πε₀r²)','Field of a point charge E = Q/(4πε₀r²)','Electric potential V = Q/(4πε₀r)','Parallel plate field E = V/d','Comparison: gravitational vs electric'],
+    ['Definition C = Q/V','Energy stored ½CV² = ½QV','Charging through a resistor','Discharging V = V₀ e^(-t/RC)','Time constant τ = RC','Capacitors in series & parallel'],
+    ['Field around a current-carrying wire','Force on a current F = BIL','Force on a moving charge F = BQv','Circular motion of charged particles','Cyclotron / velocity selector','Hall effect & Hall voltage'],
+    ['Magnetic flux Φ = BA & flux linkage NΦ','Faraday\'s law ε = -N dΦ/dt','Lenz\'s law & induced current direction','Transformer equation & efficiency','AC generation & RMS values'],
+    ['Nuclear radius R = r₀ A^(1/3)','Nuclear density (~constant)','Mass defect & binding energy','Binding energy per nucleon curve','Fission vs fusion energetics','Decay law N = N₀ e^(-λt)','Half-life T½ = ln2 / λ'],
+    ['Stellar classification & HR diagram','Stellar evolution from main sequence','Parsec, parallax & distance ladder','Doppler shift z = Δλ/λ','Hubble\'s law v = H₀d & age of universe','Olbers\' paradox & cosmology'],
+    ['Photoelectric effect (work function, threshold f)','Photon energy E = hf','Wave-particle duality','de Broglie wavelength λ = h/p','Electron diffraction experiment','Energy levels & line spectra'],
+  ]
+};
 const SC = { maths:'var(--maths)', fm:'var(--fm)', phys:'var(--physics)' };
 const SN = { maths:'Mathematics', fm:'Further Maths', phys:'Physics' };
 const LEVELS = [
@@ -451,31 +496,57 @@ function buildRevisionUI(){
       <div class="bar-bg"><div class="bar-fill" id="bf-${key}" style="background:${SC[key]};width:0%"></div></div>`;
     bars.appendChild(bar);
 
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `<div class="card-title">${SN[key]}</div><div class="topic-grid" id="tg-${key}"></div>`;
-    cards.appendChild(card);
+    const section = document.createElement('div');
+    section.className = 'card';
+    section.innerHTML = `<div class="card-title">${SN[key]}</div>`;
 
-    const grid = card.querySelector(`#tg-${key}`);
-    TOPICS[key].forEach((t, i) => {
-      const id = `${key}_${i}`;
-      const item = document.createElement('div');
-      item.className = 'tci';
-      item.dataset.id = id;
-      item.innerHTML = `<div class="tci-box"></div><div class="tci-txt">${t}</div><div class="tci-age"></div>`;
-      item.addEventListener('click', () => toggleTopic(id, item));
-      grid.appendChild(item);
+    TOPICS[key].forEach((topic, ti) => {
+      const subs = SUBTOPICS[key]?.[ti] || [];
+      const topicCard = document.createElement('div');
+      topicCard.className = 'topic-card';
+      topicCard.dataset.tid = `${key}_${ti}`;
+
+      const head = document.createElement('div');
+      head.className = 'topic-head';
+      head.innerHTML = `
+        <span class="topic-caret">▶</span>
+        <span class="topic-name" style="color:${SC[key]}">${topic}</span>
+        <div class="topic-mini-bar"><div style="background:${SC[key]}"></div></div>
+        <span class="topic-progress" data-progress="${key}_${ti}">0/${subs.length}</span>
+      `;
+      head.addEventListener('click', () => topicCard.classList.toggle('open'));
+      topicCard.appendChild(head);
+
+      const body = document.createElement('div');
+      body.className = 'topic-body';
+      const inner = document.createElement('div');
+      inner.className = 'topic-body-inner';
+      subs.forEach((sub, si) => {
+        const id = `${key}_${ti}_${si}`;
+        const item = document.createElement('div');
+        item.className = 'subt';
+        item.dataset.id = id;
+        item.innerHTML = `<div class="subt-box"></div><div class="subt-txt">${sub}</div><div class="subt-age"></div>`;
+        item.addEventListener('click', e => { e.stopPropagation(); toggleSubtopic(id); });
+        inner.appendChild(item);
+      });
+      body.appendChild(inner);
+      topicCard.appendChild(body);
+
+      section.appendChild(topicCard);
     });
+
+    cards.appendChild(section);
   });
 }
 
-function toggleTopic(id, item){
+function toggleSubtopic(id){
   const cur = state.topics[id];
   if (cur && cur.d) {
     delete state.topics[id];
   } else {
     state.topics[id] = { d:1, t: Date.now() };
-    addXP(10, 'topic done');
+    addXP(5, 'subtopic done');
   }
   markToday(0);
   renderRevision();
@@ -490,36 +561,55 @@ function topicAgeDays(id){
 }
 
 function renderRevision(){
-  let total = 0, fresh = 0, stale = 0;
+  let totalAll = 0, freshAll = 0, staleAll = 0;
   Object.keys(TOPICS).forEach(key => {
-    let dDone = 0, dStale = 0;
-    TOPICS[key].forEach((_, i) => {
-      const id = `${key}_${i}`;
-      const item = document.querySelector(`.tci[data-id="${id}"]`);
-      const t = state.topics[id];
-      const age = topicAgeDays(id);
-      total++;
-      if (t && t.d) {
-        if (age >= STALE_DAYS) { stale++; dStale++; }
-        else { fresh++; dDone++; }
+    let subjFresh = 0, subjStale = 0, subjTotal = 0;
+    TOPICS[key].forEach((_, ti) => {
+      const subs = SUBTOPICS[key]?.[ti] || [];
+      let tFresh = 0, tStale = 0;
+      subs.forEach((_, si) => {
+        const id = `${key}_${ti}_${si}`;
+        const item = document.querySelector(`.subt[data-id="${id}"]`);
+        const t = state.topics[id];
+        const age = topicAgeDays(id);
+        subjTotal++;
+        if (t && t.d) {
+          if (age >= STALE_DAYS) { tStale++; subjStale++; }
+          else { tFresh++; subjFresh++; }
+        }
+        if (item) {
+          const isFresh = !!(t && t.d) && age < STALE_DAYS;
+          const isStale = !!(t && t.d) && age >= STALE_DAYS;
+          item.classList.toggle('done', isFresh);
+          item.classList.toggle('stale', isStale);
+          item.querySelector('.subt-box').textContent = isFresh ? '✓' : isStale ? '!' : '';
+          item.querySelector('.subt-age').textContent = (t && t.d) ? `${age}d` : '';
+        }
+      });
+      const totalSubs = subs.length;
+      const doneSubs = tFresh + tStale;
+      const pct = totalSubs ? (doneSubs / totalSubs) * 100 : 0;
+      const progEl = document.querySelector(`[data-progress="${key}_${ti}"]`);
+      const topicCard = progEl?.closest('.topic-card');
+      const miniBar = topicCard?.querySelector('.topic-mini-bar > div');
+      if (progEl) {
+        progEl.textContent = `${doneSubs}/${totalSubs}`;
+        progEl.classList.remove('full','has-stale');
+        if (tFresh === totalSubs && totalSubs > 0) progEl.classList.add('full');
+        else if (tStale > 0) progEl.classList.add('has-stale');
       }
-      if (item) {
-        item.classList.toggle('done', !!(t && t.d) && age < STALE_DAYS);
-        item.classList.toggle('stale', !!(t && t.d) && age >= STALE_DAYS);
-        item.querySelector('.tci-box').textContent = (t && t.d) ? (age >= STALE_DAYS ? '!' : '✓') : '';
-        item.querySelector('.tci-age').textContent = (t && t.d) ? `${age}d` : '';
-      }
+      if (miniBar) miniBar.style.width = pct + '%';
     });
-    const count = TOPICS[key].length;
-    const pct = count ? Math.round(dDone / count * 100) : 0;
+    const pct = subjTotal ? Math.round(subjFresh / subjTotal * 100) : 0;
     const bf = document.getElementById(`bf-${key}`);
     const sp = document.getElementById(`sp-${key}`);
     if (bf) bf.style.width = pct + '%';
     if (sp) sp.textContent = pct + '%';
+    freshAll += subjFresh; staleAll += subjStale; totalAll += subjTotal;
   });
-  document.getElementById('rev-done').textContent = fresh;
-  document.getElementById('rev-stale').textContent = stale;
-  document.getElementById('rev-pct').textContent = total ? Math.round((fresh+stale)/total*100) + '%' : '0%';
+  document.getElementById('rev-done').textContent = freshAll;
+  document.getElementById('rev-stale').textContent = staleAll;
+  document.getElementById('rev-pct').textContent = totalAll ? Math.round((freshAll+staleAll)/totalAll*100) + '%' : '0%';
 }
 
 /* =========================================================================
@@ -561,22 +651,31 @@ function renderDueList(){
   Object.keys(state.topics).forEach(id => {
     const t = state.topics[id];
     if (!t || !t.d) return;
+    const parts = id.split('_');
+    if (parts.length !== 3) return; // ignore legacy topic-level ticks
+    const [subj, tiStr, siStr] = parts;
+    const ti = parseInt(tiStr), si = parseInt(siStr);
+    const subtopic = SUBTOPICS[subj]?.[ti]?.[si];
+    const topic = TOPICS[subj]?.[ti];
+    if (!subtopic || !topic) return;
     const age = Math.floor((Date.now() - t.t) / 86400000);
-    if (age >= STALE_DAYS) {
-      const [subj, idx] = id.split('_');
-      const name = TOPICS[subj]?.[parseInt(idx)];
-      if (name) due.push({ id, age, name, subj });
-    }
+    if (age >= STALE_DAYS) due.push({ id, age, subtopic, topic, subj });
   });
   due.sort((a,b) => b.age - a.age);
   if (!due.length) {
-    wrap.innerHTML = '<div class="empty-msg">All revised topics still fresh ✓</div>';
+    wrap.innerHTML = '<div class="empty-msg">All revised subtopics still fresh ✓</div>';
     return;
   }
   wrap.innerHTML = due.slice(0, 8).map(d => `
     <div class="due-item">
-      <div><span style="color:${SC[d.subj]};font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase">${SN[d.subj].split(' ')[0]}</span> <span class="due-name">${d.name}</span></div>
-      <div class="due-meta ${d.age >= 28 ? 'urgent' : ''}">${d.age}d ago</div>
+      <div style="min-width:0;flex:1">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="color:${SC[d.subj]};font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase">${SN[d.subj].split(' ')[0]}</span>
+          <span class="due-name">${escapeHtml(d.subtopic)}</span>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(d.topic)}</div>
+      </div>
+      <div class="due-meta ${d.age >= 28 ? 'urgent' : ''}">${d.age}d</div>
     </div>`).join('');
 }
 
@@ -585,14 +684,17 @@ function renderDashSubjBars(){
   if (!wrap) return;
   let totalAll = 0, doneAll = 0;
   const html = Object.keys(TOPICS).map(key => {
-    const count = TOPICS[key].length;
-    let done = 0;
-    TOPICS[key].forEach((_, i) => {
-      const t = state.topics[`${key}_${i}`];
-      if (t && t.d) done++;
+    let total = 0, done = 0;
+    TOPICS[key].forEach((_, ti) => {
+      const subs = SUBTOPICS[key]?.[ti] || [];
+      subs.forEach((_, si) => {
+        total++;
+        const t = state.topics[`${key}_${ti}_${si}`];
+        if (t && t.d) done++;
+      });
     });
-    totalAll += count; doneAll += done;
-    const pct = count ? Math.round(done/count*100) : 0;
+    totalAll += total; doneAll += done;
+    const pct = total ? Math.round(done/total*100) : 0;
     return `<div style="margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:3px">
         <span style="color:${SC[key]}">${SN[key]}</span><span>${pct}%</span>

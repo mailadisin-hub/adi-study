@@ -255,17 +255,32 @@ input[type=number]{-moz-appearance:textfield}
 .sp-pct{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.04em}
 .bar-bg{background:var(--surface3);border-radius:99px;height:6px;overflow:hidden}
 .bar-fill{height:100%;border-radius:99px;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.topic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:7px;margin-top:14px}
-.tci{display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;cursor:pointer;transition:all var(--t-fast);user-select:none;position:relative}
-.tci:hover{border-color:var(--border2);background:var(--surface3)}
-.tci.done{border-color:var(--accent);background:rgba(255,68,34,.06)}
-.tci.stale{border-color:var(--warn);background:rgba(255,170,34,.04)}
-.tci-box{width:18px;height:18px;border:2px solid var(--border2);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;transition:all var(--t-fast)}
-.tci.done .tci-box{background:var(--accent);border-color:var(--accent);color:#fff}
-.tci.stale .tci-box{background:var(--warn);border-color:var(--warn);color:#000}
-.tci-txt{font-size:12px;font-weight:500;color:var(--text2);flex:1;line-height:1.35}
-.tci.done .tci-txt{opacity:.55}
-.tci-age{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+.topic-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;transition:border-color var(--t)}
+.topic-card:hover{border-color:var(--border2)}
+.topic-card.open{border-color:var(--border2)}
+.topic-head{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none;transition:background var(--t-fast)}
+.topic-head:hover{background:var(--surface2)}
+.topic-caret{font-size:11px;color:var(--muted);transition:transform var(--t);flex-shrink:0;width:12px;display:inline-block}
+.topic-card.open .topic-caret{transform:rotate(90deg);color:var(--accent-hot)}
+.topic-name{flex:1;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.3}
+.topic-mini-bar{width:54px;height:4px;background:var(--surface3);border-radius:99px;overflow:hidden;flex-shrink:0}
+.topic-mini-bar>div{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.topic-progress{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;flex-shrink:0;min-width:36px;text-align:right}
+.topic-progress.full{color:var(--good)}
+.topic-progress.has-stale{color:var(--warn)}
+.topic-body{max-height:0;overflow:hidden;transition:max-height var(--t-slow) cubic-bezier(.4,0,.2,1)}
+.topic-card.open .topic-body{max-height:800px}
+.topic-body-inner{padding:6px 12px 12px;border-top:1px solid var(--line);margin-top:0}
+.subt{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:6px;cursor:pointer;transition:background var(--t-fast);user-select:none}
+.subt:hover{background:var(--surface2)}
+.subt.done{background:rgba(255,68,34,.05)}
+.subt.stale{background:rgba(255,170,34,.05)}
+.subt-box{width:16px;height:16px;border:2px solid var(--border2);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;transition:all var(--t-fast);line-height:1}
+.subt.done .subt-box{background:var(--accent);border-color:var(--accent);color:#fff}
+.subt.stale .subt-box{background:var(--warn);border-color:var(--warn);color:#000}
+.subt-txt{flex:1;font-size:12.5px;color:var(--text2);line-height:1.4}
+.subt.done .subt-txt{opacity:.55;text-decoration:line-through;text-decoration-color:var(--muted)}
+.subt-age{font-size:9.5px;color:var(--muted);font-weight:700;letter-spacing:.04em}
 
 /* ============ JOURNAL ============ */
 .j-form{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px}
@@ -524,7 +539,7 @@ input[type=number]{-moz-appearance:textfield}
   <!-- REVISION -->
   <section class="sec" id="sec-revision">
     <div class="sec-hdr">Revision Tracker</div>
-    <div class="sec-sub">Tick topics when revised. Stale after 14 days — re-review then.</div>
+    <div class="sec-sub">Tap a topic to expand its subtopics. Tick each subtopic when revised — stale after 14 days.</div>
     <div class="rev-stats">
       <div class="rs"><div class="rs-n" id="rev-done">0</div><div class="rs-l">Fresh</div></div>
       <div class="rs"><div class="rs-n" id="rev-stale">0</div><div class="rs-l">Stale</div></div>
