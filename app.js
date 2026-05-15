@@ -317,8 +317,12 @@ function setupTheme(){
   });
 }
 function applyTheme(){
-  document.documentElement.setAttribute('data-theme', state.theme || 'dark');
-  document.getElementById('theme-btn').textContent = state.theme === 'dark' ? '☀' : '🌙';
+  const t = state.theme || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  const use = document.querySelector('#theme-icon use');
+  if (use) use.setAttribute('href', t === 'dark' ? '#i-sun' : '#i-moon');
+  const meta = document.getElementById('theme-color-meta');
+  if (meta) meta.setAttribute('content', t === 'dark' ? '#0a0a0c' : '#f7f7f9');
 }
 
 /* =========================================================================
