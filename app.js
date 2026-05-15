@@ -566,10 +566,10 @@ function buildRevisionUI(){
 function toggleSubtopic(id){
   const cur = state.topics[id];
   if (cur && cur.d) {
-    delete state.topics[id];
+    state.topics[id] = { d:0, t: cur.t };  // keep record so re-ticking doesn't re-award XP
   } else {
     state.topics[id] = { d:1, t: Date.now() };
-    addXP(5, 'subtopic done');
+    if (!cur) addXP(5, 'subtopic done');   // only award XP the very first time
   }
   markToday(0);
   renderRevision();
