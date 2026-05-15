@@ -61,6 +61,12 @@ const LEVELS = [
 ];
 const GP = {'A*':6,'A':5,'B':4,'C':3,'D':2,'E':1,'U':0};
 const PG = ['U','E','D','C','B','A','A*'];
+// Approximate grade boundaries (%) by subject/exam board
+const PAPER_BOUNDS = {
+  'Maths':         [['A*',80],['A',68],['B',55],['C',43],['D',31],['E',20]],
+  'Further Maths': [['A*',83],['A',72],['B',59],['C',46],['D',33],['E',22]],
+  'Physics':       [['A*',77],['A',64],['B',51],['C',39],['D',27],['E',17]],
+};
 const KEY_DATES = [
   {id:'sept', date:'2026-09-07', name:'Sept Mocks', urgent:30},
   {id:'esat', date:'2026-10-16', name:'ESAT', urgent:60},
@@ -86,6 +92,7 @@ function defaultState(){
     xp: 0,
     dayMinutes: {},              // {'2026-05-14': 210}
     logs: [],                    // [{id,date,hours,mood,subj,notes,topics}]
+    papers: [],                  // [{id,date,subject,paperRef,score,maxScore,pct,grade,notes}]
     pomo: {work:25, short:5, long:15, before:4},
     pomoToday: {date:'', completed:0, minutes:0},
     theme: 'dark',
@@ -227,6 +234,7 @@ function bootApp(){
   setupGrades();
   setupRevision();
   setupJournal();
+  setupPapers();
   setupSettings();
   setupPomodoro();
   setupKeyboard();
@@ -240,6 +248,7 @@ function renderAll(){
   renderGrades();
   renderRevision();
   renderJournal();
+  renderPapers();
   renderDashboard();
   renderPomodoro();
 }
@@ -293,7 +302,7 @@ function setupKeyboard(){
   document.addEventListener('keydown', e => {
     if (e.target.matches('input, textarea, select')) return;
     if (e.key === 'Escape') toggleDrawer(false);
-    const map = {'1':'dashboard','2':'grades','3':'revision','4':'journal','5':'settings'};
+    const map = {'1':'dashboard','2':'grades','3':'revision','4':'journal','5':'papers','6':'settings'};
     if (map[e.key]) switchSec(map[e.key]);
   });
 }
@@ -448,6 +457,20 @@ function predictNote(g, p, pred){
   if (g === pred) return `Maintain this — consistent practice keeps you here.`;
   if (GP[pred] > GP[g]) return `${g} mock — high % suggests stronger ability.`;
   return `Below ceiling — focus on weak topics to push up.`;
+}
+
+function scoreToGrade(subject, pct){
+  const bounds = PAPER_BOUNDS[subject] || PAPER_BOUNDS['Maths'];
+  for (const [grade, threshold] of bounds) {
+    if (pct >= threshold) return grade;
+  }
+  return 'U';
+}
+
+function gradeColour(g){
+  if (g === 'A*' || g === 'A') return 'var(--good)';
+  if (g === 'B' || g === 'C') return 'var(--warn)';
+  return 'var(--bad)';
 }
 
 function renderOverall(grades){
@@ -835,6 +858,87 @@ function renderJournal(){
     state.logs = state.logs.filter(l => l.id !== parseInt(b.dataset.del));
     renderJournal(); renderDashboard(); save();
     toast('Log deleted');
+  }));
+}
+
+/* =========================================================================
+   PAST PAPERS
+   ========================================================================= */
+function setupPapers(){
+  document.getElementById('save-paper-btn').addEventListener('click', savePaper);
+}
+
+function savePaper(){
+  const subject  = document.getElementById('pp-subj').value;
+  const paperRef = document.getElementById('pp-ref').value.trim();
+  const score    = parseFloat(document.getElementById('pp-score').value);
+  const maxScore = parseFloat(document.getElementById('pp-max').value);
+  const notes    = document.getElementById('pp-notes').value.trim();
+  if (!paperRef)            { toast('Add a paper reference first'); return; }
+  if (isNaN(score) || isNaN(maxScore) || maxScore <= 0) { toast('Enter valid score and max marks'); return; }
+  if (score > maxScore)     { toast('Score cannot exceed max marks'); return; }
+  const pct   = Math.round((score / maxScore) * 100);
+  const grade = scoreToGrade(subject, pct);
+  const entry = { id: Date.now(), date: todayKey(), subject, paperRef, score, maxScore, pct, grade, notes };
+  if (!state.papers) state.papers = [];
+  state.papers.unshift(entry);
+  state.papers = state.papers.slice(0, 200);
+  addXP(Math.round(pct / 10), 'past paper');
+  document.getElementById('pp-ref').value   = '';
+  document.getElementById('pp-score').value = '';
+  document.getElementById('pp-max').value   = '';
+  document.getElementById('pp-notes').value = '';
+  renderPapers();
+  save();
+  toast(`Logged — ${pct}% · ${grade}`);
+}
+
+function renderPapers(){
+  if (!state.papers) state.papers = [];
+
+  // summary cards
+  const subjects = ['Maths','Further Maths','Physics'];
+  const summEl = document.getElementById('pp-summary');
+  summEl.innerHTML = subjects.map(s => {
+    const entries = state.papers.filter(p => p.subject === s);
+    if (!entries.length) return '';
+    const avgPct = Math.round(entries.reduce((a, p) => a + p.pct, 0) / entries.length);
+    const avgGrade = scoreToGrade(s, avgPct);
+    const subjectVar = s === 'Maths' ? 'var(--maths)' : s === 'Further Maths' ? 'var(--fm)' : 'var(--physics)';
+    return `
+      <div class="pp-sum-card" style="border-color:${subjectVar}">
+        <div class="pp-sum-subj" style="color:${subjectVar}">${s}</div>
+        <div class="pp-sum-grade" style="color:${gradeColour(avgGrade)}">${avgGrade}</div>
+        <div class="pp-sum-avg">${avgPct}% avg</div>
+        <div class="pp-sum-count">${entries.length} paper${entries.length > 1 ? 's' : ''}</div>
+      </div>`;
+  }).join('');
+
+  // list
+  const cont = document.getElementById('pp-list');
+  if (!state.papers.length) {
+    cont.innerHTML = `<div class="empty-msg">No papers logged yet — add your first one above.</div>`;
+    return;
+  }
+  cont.innerHTML = state.papers.slice(0, 50).map(p => `
+    <div class="log-entry">
+      <div class="le-hdr">
+        <div class="le-meta">
+          <span class="pp-grade-badge" style="color:${gradeColour(p.grade)};border-color:${gradeColour(p.grade)}">${p.grade}</span>
+          <span class="le-date">${p.date}</span>
+          <span class="le-hrs">${p.score}/${p.maxScore} · ${p.pct}%</span>
+          <span class="le-tag">${escapeHtml(p.subject)}</span>
+          <span style="color:var(--text3);font-size:12px">${escapeHtml(p.paperRef)}</span>
+        </div>
+        <button class="le-del" data-pdel="${p.id}" aria-label="Delete">✕</button>
+      </div>
+      ${p.notes ? `<div class="le-body">${escapeHtml(p.notes)}</div>` : ''}
+    </div>
+  `).join('');
+  cont.querySelectorAll('[data-pdel]').forEach(b => b.addEventListener('click', () => {
+    state.papers = state.papers.filter(p => p.id !== parseInt(b.dataset.pdel));
+    renderPapers(); save();
+    toast('Paper deleted');
   }));
 }
 
