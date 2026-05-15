@@ -342,13 +342,12 @@ function renderHeader(){
 
 function addXP(n, reason){
   const before = state.xp || 0;
-  state.xp = before + n;
-  // level-up confetti
+  state.xp = Math.max(0, before + n);
   const beforeLv = LEVELS.findIndex(L => before >= L.min && (LEVELS[LEVELS.indexOf(L)+1]?.min || Infinity) > before);
   const afterLv = LEVELS.findIndex(L => state.xp >= L.min && (LEVELS[LEVELS.indexOf(L)+1]?.min || Infinity) > state.xp);
   if (afterLv > beforeLv) { confetti(); toast(`Level up! ${LEVELS[afterLv].n}`); }
-  else if (reason) toast(`+${n} XP · ${reason}`);
-  else toast(`+${n} XP`);
+  else if (reason) toast(`${n > 0 ? '+' : ''}${n} XP · ${reason}`);
+  else toast(`${n > 0 ? '+' : ''}${n} XP`);
   renderHeader();
   save();
 }
@@ -566,10 +565,11 @@ function buildRevisionUI(){
 function toggleSubtopic(id){
   const cur = state.topics[id];
   if (cur && cur.d) {
-    state.topics[id] = { d:0, t: cur.t };  // keep record so re-ticking doesn't re-award XP
+    state.topics[id] = { d:0, t: cur.t };
+    addXP(-5, 'subtopic undone');
   } else {
     state.topics[id] = { d:1, t: Date.now() };
-    if (!cur) addXP(5, 'subtopic done');   // only award XP the very first time
+    addXP(5, 'subtopic done');
   }
   markToday(0);
   renderRevision();
