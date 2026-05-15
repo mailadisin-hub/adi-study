@@ -4,7 +4,7 @@
    Firebase requests pass through (no cache).
    ========================================================================= */
 
-const CACHE = 'adi-study-v2';
+const CACHE = 'adi-study-v3';
 const SHELL = ['./', 'index.html', 'app.js', 'firebase-config.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'icon.svg'];
 
 self.addEventListener('install', e => {
