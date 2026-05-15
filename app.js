@@ -806,7 +806,7 @@ function saveLog(){
   document.getElementById('j-hours').value = '';
   document.getElementById('j-notes').value = '';
   document.querySelectorAll('.j-chip.sel').forEach(c => c.classList.remove('sel'));
-  addXP(Math.round((hours || 1) * 8), 'logged session');
+  if (hours > 0) addXP(Math.round(hours * 8), 'logged session');
   renderJournal(); renderDashboard();
   save();
 }
