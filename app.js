@@ -102,6 +102,8 @@ const ACHIEVEMENTS = [
   { id:'level_8',       name:'A* Machine',            desc:'Reach the highest rank',             icon:'i-target',     check: s => (s.xp||0) >= LEVELS[LEVELS.length-1].min },
   { id:'marathon_day',  name:'Marathon Day',          desc:'Log 8+ hours of study in a day',     icon:'i-flame',      check: s => Object.values(s.dayMinutes||{}).some(m => m >= 480) },
   { id:'freeze_earned', name:'Cool Under Fire',       desc:'Earn your first streak freeze',      icon:'i-flame',      check: s => (s.freezesEarned||0) >= 1 },
+  { id:'goal_week_1',   name:'Goal Getter',           desc:'Complete all goals in one week',     icon:'i-target',     check: s => (s.goalWeeksHit||0) >= 1 },
+  { id:'goal_week_4',   name:'Disciplined',           desc:'Hit your weekly goals 4 weeks running',icon:'i-target',  check: s => (s.goalWeeksHit||0) >= 4 },
 ];
 
 function subjectAllStudied(key, s){
@@ -146,7 +148,7 @@ function defaultState(){
     xp: 0,
     dayMinutes: {},              // {'2026-05-14': 210}
     logs: [],                    // [{id,date,hours,mood,subj,notes,topics}]
-    papers: [],                  // [{id,date,subject,paperRef,score,maxScore,pct,grade,notes}]
+    papers: [],                  // [{id,date,subject,paperRef,score,maxScore,pct,grade,notes,questions}]
     pomo: {work:25, short:5, long:15, before:4},
     pomoToday: {date:'', completed:0, minutes:0},
     pomoTotal: 0,                // lifetime completed pomodoros
@@ -154,6 +156,11 @@ function defaultState(){
     freezesEarned: 0,            // total ever earned (prevents double-award)
     shieldedDays: [],            // ['2026-05-13'] — days protected by freeze
     achievements: [],            // ['streak_3', ...]
+    goals: {},                   // { '2026-05-11': [{id,text,done}] } — keyed by ISO Monday
+    goalWeeksHit: 0,             // count of fully-completed weeks
+    planHours: {                 // weekly target hours per subject
+      Maths: 8, 'Further Maths': 6, Physics: 6, 'ESAT / TMUA': 2, 'Personal Statement': 1
+    },
     theme: 'dark',
     updatedAt: 0,
   };
@@ -299,6 +306,8 @@ function bootApp(){
   setupJournal();
   setupPapers();
   setupAchievements();
+  setupGoals();
+  setupAnalytics();
   setupSettings();
   setupPomodoro();
   setupKeyboard();
@@ -315,6 +324,8 @@ function renderAll(){
   renderJournal();
   renderPapers();
   renderDashboard();
+  renderGoals();
+  renderAnalytics();
   renderAchievements();
   renderPomodoro();
 }
@@ -1376,6 +1387,282 @@ function beep(){
 /* =========================================================================
    SETTINGS
    ========================================================================= */
+/* =========================================================================
+   GOALS
+   ========================================================================= */
+function weekStartKey(date){
+  const d = new Date(date || new Date()); d.setHours(0,0,0,0);
+  const dow = d.getDay();
+  const diff = (dow === 0 ? -6 : 1 - dow); // make Monday the start
+  d.setDate(d.getDate() + diff);
+  return dayKey(d);
+}
+
+function setupGoals(){
+  // event delegation set up in renderGoals after rebuild
+}
+
+function getCurrentGoals(){
+  const wk = weekStartKey();
+  if (!state.goals) state.goals = {};
+  if (!state.goals[wk]) state.goals[wk] = [];
+  return state.goals[wk];
+}
+
+function renderGoals(){
+  const wrap = document.getElementById('goal-list');
+  const status = document.getElementById('goal-status');
+  if (!wrap) return;
+  const goals = getCurrentGoals();
+  if (!goals.length) {
+    wrap.innerHTML = `<div class="goal-cta" id="goal-add-cta">+ Add up to 3 goals for this week</div>`;
+    if (status) status.textContent = '0/3';
+    document.getElementById('goal-add-cta').addEventListener('click', () => addGoalRow());
+    return;
+  }
+  const done = goals.filter(g => g.done).length;
+  if (status) status.textContent = `${done}/${goals.length}`;
+  wrap.innerHTML = goals.map(g => `
+    <div class="goal-row ${g.done ? 'done' : ''}" data-gid="${g.id}">
+      <div class="goal-check" data-gtoggle="${g.id}">✓</div>
+      <input class="goal-text" data-gtext="${g.id}" value="${escapeHtml(g.text)}" placeholder="Goal description">
+      <button class="goal-del" data-gdel="${g.id}" aria-label="Remove">✕</button>
+    </div>
+  `).join('') + (goals.length < 3 ? `<div class="goal-cta" id="goal-add-cta">+ Add another goal</div>` : '');
+
+  wrap.querySelectorAll('[data-gtoggle]').forEach(el => el.addEventListener('click', () => toggleGoal(parseInt(el.dataset.gtoggle))));
+  wrap.querySelectorAll('[data-gtext]').forEach(el => el.addEventListener('change', e => updateGoalText(parseInt(e.target.dataset.gtext), e.target.value)));
+  wrap.querySelectorAll('[data-gdel]').forEach(el => el.addEventListener('click', () => deleteGoal(parseInt(el.dataset.gdel))));
+  const cta = document.getElementById('goal-add-cta');
+  if (cta) cta.addEventListener('click', () => addGoalRow());
+}
+
+function addGoalRow(){
+  const goals = getCurrentGoals();
+  if (goals.length >= 3) return;
+  goals.push({ id: Date.now() + Math.random(), text: '', done: false });
+  renderGoals();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.goal-text');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 0);
+  save();
+}
+
+function toggleGoal(id){
+  const goals = getCurrentGoals();
+  const g = goals.find(x => x.id === id);
+  if (!g) return;
+  g.done = !g.done;
+  // Award XP on completion; track week-completion for achievement
+  if (g.done) {
+    addXP(15, 'goal');
+    if (goals.length === 3 && goals.every(x => x.done)) {
+      state.goalWeeksHit = (state.goalWeeksHit || 0) + 1;
+      confetti();
+      setTimeout(() => toast('All weekly goals hit!'), 400);
+    }
+  }
+  renderGoals();
+  save();
+}
+
+function updateGoalText(id, text){
+  const g = getCurrentGoals().find(x => x.id === id);
+  if (g) { g.text = text; save(); }
+}
+
+function deleteGoal(id){
+  const wk = weekStartKey();
+  state.goals[wk] = (state.goals[wk] || []).filter(g => g.id !== id);
+  renderGoals(); save();
+}
+
+/* =========================================================================
+   ANALYTICS — Plan vs Actual + 3 charts
+   ========================================================================= */
+function setupAnalytics(){
+  const edit = document.getElementById('targets-edit');
+  if (edit) edit.addEventListener('click', toggleTargetEdit);
+}
+
+function toggleTargetEdit(){
+  const panel = document.getElementById('target-edit-panel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  document.getElementById('targets-edit').textContent = open ? 'Edit targets' : 'Done';
+  if (!open) renderTargetEdit();
+}
+
+function renderTargetEdit(){
+  const grid = document.getElementById('target-edit-grid');
+  if (!grid) return;
+  const subs = Object.keys(state.planHours || {});
+  grid.innerHTML = subs.map(s => `
+    <div class="target-edit-row">
+      <span class="target-edit-lbl">${escapeHtml(s)}</span>
+      <input type="number" min="0" max="40" step="0.5" data-plan="${escapeAttr(s)}" value="${state.planHours[s] || 0}">
+      <span class="unit">h/wk</span>
+    </div>
+  `).join('');
+  grid.querySelectorAll('[data-plan]').forEach(el => el.addEventListener('input', e => {
+    state.planHours[e.target.dataset.plan] = parseFloat(e.target.value) || 0;
+    renderPlanActual(); save();
+  }));
+}
+
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+
+function renderAnalytics(){
+  renderPlanActual();
+  renderChartTrajectory();
+  renderChartHours();
+  renderChartMood();
+}
+
+function renderPlanActual(){
+  const wrap = document.getElementById('plan-actual-list');
+  if (!wrap) return;
+  // Sum logged hours this week per subject
+  const wkStart = new Date(weekStartKey() + 'T00:00:00');
+  const wkEnd = new Date(wkStart); wkEnd.setDate(wkStart.getDate() + 7);
+  const totals = {};
+  (state.logs || []).forEach(l => {
+    const d = new Date(l.date + 'T00:00:00');
+    if (d >= wkStart && d < wkEnd) {
+      totals[l.subj] = (totals[l.subj] || 0) + (l.hours || 0);
+    }
+  });
+  const subs = Object.keys(state.planHours || {});
+  const maxVal = Math.max(1, ...subs.map(s => Math.max(state.planHours[s] || 0, totals[s] || 0)));
+  wrap.innerHTML = subs.map(s => {
+    const plan = state.planHours[s] || 0;
+    const actual = totals[s] || 0;
+    const planPct = (plan / maxVal) * 100;
+    const actualPct = (actual / maxVal) * 100;
+    return `
+      <div class="plan-actual-row">
+        <div class="plan-actual-name">${escapeHtml(s)}</div>
+        <div class="plan-actual-bar plan"><div style="width:${planPct}%"></div></div>
+        <div class="plan-actual-bar actual"><div style="width:${actualPct}%"></div></div>
+        <div class="plan-actual-num">${actual.toFixed(1)} / ${plan}h</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderChartTrajectory(){
+  const svg = document.getElementById('chart-trajectory');
+  if (!svg) return;
+  const W = 600, H = 200, PAD = 24;
+  const subjects = ['Maths','Further Maths','Physics'];
+  const colours = { 'Maths':'var(--maths)', 'Further Maths':'var(--fm)', 'Physics':'var(--physics)' };
+  // Y axis: U=0, A*=6
+  const yFor = pts => H - PAD - (pts / 6) * (H - 2*PAD);
+  const allPapers = (state.papers || []).slice().sort((a,b) => a.date.localeCompare(b.date));
+  if (!allPapers.length) {
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--text-4)" font-family="Inter" font-size="13">Log some past papers to see your trajectory.</text>`;
+    document.getElementById('chart-trajectory-legend').innerHTML = '';
+    return;
+  }
+  // x axis range = first to last paper date
+  const firstT = new Date(allPapers[0].date).getTime();
+  const lastT = new Date(allPapers[allPapers.length - 1].date).getTime();
+  const span = Math.max(1, lastT - firstT);
+  const xFor = ts => PAD + ((ts - firstT) / span) * (W - 2*PAD);
+
+  // Grid lines for each grade
+  const grades = [['A*',6],['A',5],['B',4],['C',3],['D',2],['E',1],['U',0]];
+  let gridHtml = grades.map(([g, p]) => {
+    const y = yFor(p);
+    return `<line x1="${PAD}" y1="${y}" x2="${W-PAD}" y2="${y}" stroke="var(--hairline)" stroke-width="1"/>
+            <text x="6" y="${y+4}" font-family="Inter" font-size="10" fill="var(--text-4)">${g}</text>`;
+  }).join('');
+
+  let pathsHtml = '';
+  let legendHtml = '';
+  subjects.forEach(subj => {
+    const pts = allPapers.filter(p => p.subject === subj).map(p => ({
+      x: xFor(new Date(p.date).getTime()),
+      y: yFor(GP[p.grade] ?? 0),
+      grade: p.grade,
+    }));
+    if (!pts.length) return;
+    const path = pts.map((p,i) => (i===0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+    pathsHtml += `<path d="${path}" fill="none" stroke="${colours[subj]}" stroke-width="2" stroke-linejoin="round"/>`;
+    pts.forEach(p => {
+      pathsHtml += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${colours[subj]}"><title>${subj} · ${p.grade}</title></circle>`;
+    });
+    legendHtml += `<div class="chart-legend-item"><span class="chart-legend-dot" style="background:${colours[subj]}"></span>${subj}</div>`;
+  });
+  svg.innerHTML = gridHtml + pathsHtml;
+  document.getElementById('chart-trajectory-legend').innerHTML = legendHtml;
+}
+
+function renderChartHours(){
+  const svg = document.getElementById('chart-hours');
+  if (!svg) return;
+  const W = 600, H = 200, PAD_T = 16, PAD_B = 32, PAD_L = 100, PAD_R = 16;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const cutoff = new Date(now); cutoff.setDate(now.getDate() - 30);
+  const totals = {};
+  (state.logs || []).forEach(l => {
+    const d = new Date(l.date + 'T00:00:00');
+    if (d >= cutoff) totals[l.subj] = (totals[l.subj] || 0) + (l.hours || 0);
+  });
+  const items = Object.entries(totals).filter(([_, v]) => v > 0).sort((a,b) => b[1] - a[1]);
+  document.getElementById('hours-total').textContent = items.length ? `${items.reduce((a,[_,v]) => a+v, 0).toFixed(1)}h total` : '';
+  if (!items.length) {
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--text-4)" font-family="Inter" font-size="13">Log some sessions to see hours by subject.</text>`;
+    return;
+  }
+  const max = Math.max(...items.map(i => i[1]));
+  const rowH = (H - PAD_T - PAD_B) / items.length;
+  let html = '';
+  items.forEach(([subj, hrs], i) => {
+    const y = PAD_T + i * rowH;
+    const barW = ((W - PAD_L - PAD_R) * (hrs / max));
+    html += `<text x="${PAD_L - 8}" y="${y + rowH/2 + 4}" text-anchor="end" font-family="Inter" font-size="12" font-weight="500" fill="var(--text-2)">${escapeHtml(subj)}</text>`;
+    html += `<rect x="${PAD_L}" y="${y + 4}" width="${barW.toFixed(1)}" height="${(rowH - 8).toFixed(1)}" rx="4" fill="var(--accent)" opacity=".85"/>`;
+    html += `<text x="${PAD_L + barW + 8}" y="${y + rowH/2 + 4}" font-family="Inter" font-size="12" font-weight="600" fill="var(--text-2)">${hrs.toFixed(1)}h</text>`;
+  });
+  svg.innerHTML = html;
+}
+
+function renderChartMood(){
+  const svg = document.getElementById('chart-mood');
+  if (!svg) return;
+  const W = 600, H = 200, PAD_T = 24, PAD_B = 44, PAD_L = 24, PAD_R = 24;
+  const moods = ['🔥','✅','😐','😴','❌'];
+  const labels = { '🔥':'On fire', '✅':'Productive', '😐':'Average', '😴':'Tired', '❌':'Rough day' };
+  const sums = {}, counts = {};
+  (state.logs || []).forEach(l => {
+    const m = l.mood || '✅';
+    sums[m] = (sums[m] || 0) + (l.hours || 0);
+    counts[m] = (counts[m] || 0) + 1;
+  });
+  const data = moods.map(m => ({ mood:m, avg: counts[m] ? sums[m]/counts[m] : 0, n: counts[m] || 0 }));
+  if (data.every(d => d.n === 0)) {
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--text-4)" font-family="Inter" font-size="13">Save some logs with moods to see this.</text>`;
+    return;
+  }
+  const max = Math.max(0.5, ...data.map(d => d.avg));
+  const barSpan = (W - PAD_L - PAD_R) / data.length;
+  let html = '';
+  data.forEach((d, i) => {
+    const x = PAD_L + i * barSpan + barSpan * 0.2;
+    const barW = barSpan * 0.6;
+    const barH = (H - PAD_T - PAD_B) * (d.avg / max);
+    const y = H - PAD_B - barH;
+    html += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="6" fill="${d.n ? 'var(--accent)' : 'var(--surface-3)'}" opacity="${d.n ? 1 : .3}"/>`;
+    html += `<text x="${(x + barW/2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" font-family="Inter" font-size="11" font-weight="600" fill="var(--text-2)">${d.avg ? d.avg.toFixed(1)+'h' : ''}</text>`;
+    html += `<text x="${(x + barW/2).toFixed(1)}" y="${(H - PAD_B + 22).toFixed(1)}" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="20">${d.mood}</text>`;
+    html += `<text x="${(x + barW/2).toFixed(1)}" y="${(H - 10).toFixed(1)}" text-anchor="middle" font-family="Inter" font-size="10" fill="var(--text-4)">${labels[d.mood]} (${d.n})</text>`;
+  });
+  svg.innerHTML = html;
+}
+
 /* =========================================================================
    ACHIEVEMENTS UI
    ========================================================================= */

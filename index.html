@@ -571,6 +571,49 @@ a{color:inherit;text-decoration:none}
 .set-desc{font-size:var(--fs-12);color:var(--text-3);margin-top:3px;max-width:320px;line-height:1.5}
 
 /* =========================================================================
+   GOALS
+   ========================================================================= */
+.goal-list{display:flex;flex-direction:column;gap:6px}
+.goal-row{display:flex;align-items:center;gap:var(--s-3);padding:10px 12px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);transition:all var(--t-fast)}
+.goal-row:hover{border-color:var(--hairline-2)}
+.goal-row.done{background:var(--accent-soft)}
+.goal-check{width:18px;height:18px;border:1.5px solid var(--hairline-2);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:transparent;transition:all var(--t-fast)}
+.goal-row.done .goal-check{background:var(--accent);border-color:var(--accent);color:#fff}
+.goal-text{flex:1;font-size:var(--fs-13);color:var(--text);background:transparent;outline:none;border:0;min-width:0}
+.goal-row.done .goal-text{color:var(--text-3);text-decoration:line-through}
+.goal-del{color:var(--text-4);font-size:14px;padding:4px;border-radius:var(--r-sm);transition:color var(--t-fast)}
+.goal-del:hover{color:var(--bad)}
+.goal-cta{padding:var(--s-3);border:1px dashed var(--hairline-2);border-radius:var(--r-md);text-align:center;font-size:var(--fs-13);color:var(--text-3);cursor:pointer;transition:all var(--t-fast)}
+.goal-cta:hover{border-color:var(--accent);color:var(--accent)}
+.goal-status{font-size:var(--fs-11);font-weight:700;color:var(--text-3);letter-spacing:.04em}
+
+/* =========================================================================
+   ANALYTICS
+   ========================================================================= */
+.chart-card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);margin-bottom:var(--s-3)}
+.chart-svg{width:100%;height:200px;display:block}
+.chart-legend{display:flex;gap:var(--s-3);flex-wrap:wrap;font-size:var(--fs-11);font-weight:600;color:var(--text-3);margin-top:var(--s-2)}
+.chart-legend-item{display:flex;align-items:center;gap:5px}
+.chart-legend-dot{width:8px;height:8px;border-radius:50%}
+
+.plan-actual-row{display:grid;grid-template-columns:100px 1fr 1fr 64px;gap:var(--s-2);align-items:center;padding:8px 0;border-bottom:1px solid var(--hairline)}
+.plan-actual-row:last-child{border-bottom:none}
+.plan-actual-name{font-size:var(--fs-13);font-weight:600;color:var(--text)}
+.plan-actual-bar{position:relative;height:18px;background:var(--surface-3);border-radius:var(--r-sm);overflow:hidden}
+.plan-actual-bar > div{position:absolute;left:0;top:0;bottom:0;border-radius:var(--r-sm);transition:width .8s var(--ease-out)}
+.plan-actual-bar.plan > div{background:var(--text-4);opacity:.5}
+.plan-actual-bar.actual > div{background:var(--accent)}
+.plan-actual-num{font-size:var(--fs-11);font-weight:600;color:var(--text-3);text-align:right}
+.plan-header{font-size:var(--fs-11);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-4);padding-bottom:6px;display:grid;grid-template-columns:100px 1fr 1fr 64px;gap:var(--s-2)}
+
+.target-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2);margin-top:var(--s-3)}
+.target-edit-row{display:flex;align-items:center;gap:var(--s-2);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:7px 10px}
+.target-edit-row:focus-within{border-color:var(--accent)}
+.target-edit-lbl{flex:1;font-size:var(--fs-12);color:var(--text-2)}
+.target-edit-row input{width:48px;text-align:center;font-size:var(--fs-13);font-weight:600;color:var(--text);background:transparent;border:0;outline:none}
+.target-edit-row .unit{font-size:var(--fs-11);color:var(--text-4)}
+
+/* =========================================================================
    WEAK AREAS
    ========================================================================= */
 .weak-item{display:flex;align-items:center;gap:var(--s-3);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:10px 12px;margin-bottom:6px;transition:border-color var(--t)}
@@ -715,6 +758,7 @@ a{color:inherit;text-decoration:none}
     <button class="drawer-item" data-sec="revision"><svg class="ico"><use href="#i-check-list"/></svg><span>Revision</span></button>
     <button class="drawer-item" data-sec="journal"><svg class="ico"><use href="#i-book"/></svg><span>Study Log</span></button>
     <button class="drawer-item" data-sec="papers"><svg class="ico"><use href="#i-doc"/></svg><span>Past Papers</span></button>
+    <button class="drawer-item" data-sec="analytics"><svg class="ico"><use href="#i-arrow-up"/></svg><span>Analytics</span></button>
     <button class="drawer-item" data-sec="achievements"><svg class="ico"><use href="#i-target"/></svg><span>Achievements</span></button>
     <button class="drawer-item" data-sec="settings"><svg class="ico"><use href="#i-gear"/></svg><span>Settings</span></button>
   </nav>
@@ -754,9 +798,18 @@ a{color:inherit;text-decoration:none}
 
     <div class="countdowns" id="countdowns"></div>
 
-    <div class="card mb-3">
-      <div class="card-title">Focus Next · Top 5 Weak Areas</div>
-      <div id="weak-list"></div>
+    <div class="grid grid-2 mb-3">
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title">This Week's Goals</div>
+          <span class="goal-status" id="goal-status">0/0</span>
+        </div>
+        <div id="goal-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Focus Next · Top 5 Weak Areas</div>
+        <div id="weak-list"></div>
+      </div>
     </div>
 
     <div class="grid grid-2 mb-3">
@@ -933,6 +986,49 @@ a{color:inherit;text-decoration:none}
     </div>
     <div class="card-title" style="margin-top:var(--s-6)">Paper History</div>
     <div id="pp-list"></div>
+  </section>
+
+  <!-- ANALYTICS -->
+  <section class="sec" id="sec-analytics">
+    <div class="sec-hdr">Analytics</div>
+    <div class="sec-sub">Trends pulled from your logs, papers, and Pomodoros.</div>
+
+    <div class="chart-card">
+      <div class="card-title-row">
+        <div class="card-title">Grade Trajectory</div>
+        <span style="font-size:var(--fs-11);color:var(--text-4)">Per-paper grade over time</span>
+      </div>
+      <svg class="chart-svg" id="chart-trajectory" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+      <div class="chart-legend" id="chart-trajectory-legend"></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-title-row">
+        <div class="card-title">Hours by Subject · Last 30 Days</div>
+        <span style="font-size:var(--fs-11);color:var(--text-4)" id="hours-total"></span>
+      </div>
+      <svg class="chart-svg" id="chart-hours" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-title-row">
+        <div class="card-title">Mood vs Hours</div>
+        <span style="font-size:var(--fs-11);color:var(--text-4)">Average daily hours per mood</span>
+      </div>
+      <svg class="chart-svg" id="chart-mood" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-title-row">
+        <div class="card-title">Plan vs Actual · This Week</div>
+        <button class="btn-ghost" id="targets-edit" style="font-size:var(--fs-11);padding:6px 12px">Edit targets</button>
+      </div>
+      <div class="plan-header"><span>Subject</span><span>Plan</span><span>Actual</span><span></span></div>
+      <div id="plan-actual-list"></div>
+      <div id="target-edit-panel" style="display:none">
+        <div class="target-edit-grid" id="target-edit-grid"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ACHIEVEMENTS -->
