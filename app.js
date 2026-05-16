@@ -779,11 +779,95 @@ function renderRevision(){
    DASHBOARD
    ========================================================================= */
 function renderDashboard(){
+  renderWeakAreas();
   renderSnapshot();
   renderDueList();
   renderDashSubjBars();
   renderHeatmap();
   renderSparkline();
+}
+
+function computeWeakAreas(){
+  const out = [];
+  Object.keys(TOPICS).forEach(subj => {
+    TOPICS[subj].forEach((topic, ti) => {
+      let score = 0;
+      const reasons = [];
+
+      // Paper performance (weight 40)
+      let topicScore = 0, topicMax = 0;
+      (state.papers || []).forEach(p => {
+        (p.questions || []).forEach(q => {
+          if (q.topic === topic && q.max > 0) {
+            topicScore += q.score || 0;
+            topicMax += q.max;
+          }
+        });
+      });
+      if (topicMax > 0) {
+        const pct = topicScore / topicMax;
+        if (pct < 0.7) {
+          score += 40 * (0.7 - pct) / 0.7;
+          reasons.push(`${Math.round(pct * 100)}% on papers`);
+        }
+      }
+
+      // Confidence & coverage (weight 30)
+      const subs = SUBTOPICS[subj]?.[ti] || [];
+      if (subs.length) {
+        const confs = subs.map((_, si) => {
+          const t = (state.topics || {})[`${subj}_${ti}_${si}`];
+          return (t && t.d) ? (t.c || 3) : 0;
+        });
+        const studied = confs.filter(c => c > 0);
+        const coverage = studied.length / subs.length;
+        if (coverage < 0.7) {
+          score += 30 * (1 - coverage);
+          reasons.push(`${studied.length}/${subs.length} subtopics studied`);
+        }
+        if (studied.length) {
+          const avgConf = studied.reduce((a,b) => a+b, 0) / studied.length;
+          if (avgConf < 3.5) {
+            score += 20 * (3.5 - avgConf) / 3.5;
+            reasons.push(`avg confidence ${avgConf.toFixed(1)}/5`);
+          }
+        }
+      }
+
+      // Staleness (weight 20)
+      const ages = (subs || []).map((_, si) => topicAgeDays(`${subj}_${ti}_${si}`)).filter(a => a !== null);
+      if (ages.length) {
+        const oldest = Math.max(...ages);
+        if (oldest >= 14) {
+          score += 20 * Math.min(1, (oldest - 7) / 30);
+          reasons.push(`${oldest}d since last review`);
+        }
+      }
+
+      if (score > 6) out.push({ score, subj, topic, reasons });
+    });
+  });
+  return out.sort((a,b) => b.score - a.score).slice(0, 5);
+}
+
+function renderWeakAreas(){
+  const wrap = document.getElementById('weak-list');
+  if (!wrap) return;
+  const items = computeWeakAreas();
+  if (!items.length) {
+    wrap.innerHTML = '<div class="empty-msg">Log paper questions, tick subtopics, or wait — weak areas will surface as data builds up.</div>';
+    return;
+  }
+  wrap.innerHTML = items.map((w, i) => `
+    <div class="weak-item">
+      <div class="weak-rank">${i+1}</div>
+      <div class="weak-body">
+        <div class="weak-name"><span style="color:${SC[w.subj]};font-weight:700;font-size:var(--fs-11);letter-spacing:.08em;text-transform:uppercase;margin-right:6px">${SN[w.subj].split(' ')[0]}</span>${escapeHtml(w.topic)}</div>
+        <div class="weak-reasons">${w.reasons.join(' · ')}</div>
+      </div>
+      <div class="weak-score" title="Weakness score">${Math.round(w.score)}</div>
+    </div>
+  `).join('');
 }
 
 function renderSnapshot(){
@@ -1007,8 +1091,65 @@ function renderJournal(){
 /* =========================================================================
    PAST PAPERS
    ========================================================================= */
+let pendingQuestions = [];
+
 function setupPapers(){
   document.getElementById('save-paper-btn').addEventListener('click', savePaper);
+  const toggle = document.getElementById('pp-q-toggle');
+  if (toggle) toggle.addEventListener('click', () => {
+    const area = document.getElementById('pp-questions');
+    const open = area.style.display !== 'none';
+    area.style.display = open ? 'none' : 'block';
+    toggle.innerHTML = open
+      ? `<svg class="ico ico-sm"><use href="#i-plus"/></svg>Add per-question breakdown`
+      : `<svg class="ico ico-sm"><use href="#i-x"/></svg>Hide breakdown`;
+    if (!open && pendingQuestions.length === 0) addQuestionRow();
+  });
+  const adder = document.getElementById('pp-q-add');
+  if (adder) adder.addEventListener('click', addQuestionRow);
+  const subjEl = document.getElementById('pp-subj');
+  if (subjEl) subjEl.addEventListener('change', renderQuestionRows);
+}
+
+function subjLabelToKey(label){
+  return label === 'Maths' ? 'maths' : label === 'Further Maths' ? 'fm' : 'phys';
+}
+
+function addQuestionRow(){
+  pendingQuestions.push({ topic:'', score:0, max:0 });
+  renderQuestionRows();
+}
+
+function renderQuestionRows(){
+  const rowsEl = document.getElementById('pp-q-rows');
+  if (!rowsEl) return;
+  const subj = document.getElementById('pp-subj').value;
+  const subjKey = subjLabelToKey(subj);
+  const topics = TOPICS[subjKey] || [];
+  rowsEl.innerHTML = pendingQuestions.map((q, i) => `
+    <div class="pp-q-row">
+      <span class="pp-q-num">${i+1}</span>
+      <select data-qf="topic" data-i="${i}">
+        <option value="">— topic —</option>
+        ${topics.map(t => `<option ${q.topic === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
+      </select>
+      <input type="number" data-qf="score" data-i="${i}" placeholder="0" min="0" step="1" value="${q.score || ''}">
+      <input type="number" data-qf="max" data-i="${i}" placeholder="0" min="1" step="1" value="${q.max || ''}">
+      <button class="pp-q-del" data-i="${i}" title="Remove" aria-label="Remove">✕</button>
+    </div>
+  `).join('');
+  rowsEl.querySelectorAll('[data-qf]').forEach(el => {
+    const handler = e => {
+      const idx = parseInt(e.target.dataset.i);
+      const field = e.target.dataset.qf;
+      pendingQuestions[idx][field] = field === 'topic' ? e.target.value : (parseFloat(e.target.value) || 0);
+    };
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', handler);
+  });
+  rowsEl.querySelectorAll('.pp-q-del').forEach(el => el.addEventListener('click', () => {
+    pendingQuestions.splice(parseInt(el.dataset.i), 1);
+    renderQuestionRows();
+  }));
 }
 
 function savePaper(){
@@ -1022,7 +1163,10 @@ function savePaper(){
   if (score > maxScore)     { toast('Score cannot exceed max marks'); return; }
   const pct   = Math.round((score / maxScore) * 100);
   const grade = scoreToGrade(subject, pct);
-  const entry = { id: Date.now(), date: todayKey(), subject, paperRef, score, maxScore, pct, grade, notes };
+  const questions = pendingQuestions
+    .filter(q => q.topic && q.max > 0)
+    .map(q => ({ topic: q.topic, score: q.score || 0, max: q.max }));
+  const entry = { id: Date.now(), date: todayKey(), subject, paperRef, score, maxScore, pct, grade, notes, questions };
   if (!state.papers) state.papers = [];
   state.papers.unshift(entry);
   state.papers = state.papers.slice(0, 200);
@@ -1031,6 +1175,12 @@ function savePaper(){
   document.getElementById('pp-score').value = '';
   document.getElementById('pp-max').value   = '';
   document.getElementById('pp-notes').value = '';
+  pendingQuestions = [];
+  const qArea = document.getElementById('pp-questions');
+  const qToggle = document.getElementById('pp-q-toggle');
+  if (qArea) qArea.style.display = 'none';
+  if (qToggle) qToggle.innerHTML = `<svg class="ico ico-sm"><use href="#i-plus"/></svg>Add per-question breakdown`;
+  renderQuestionRows();
   renderPapers();
   save();
   toast(`Logged — ${pct}% · ${grade}`);
@@ -1063,21 +1213,31 @@ function renderPapers(){
     cont.innerHTML = `<div class="empty-msg">No papers logged yet — add your first one above.</div>`;
     return;
   }
-  cont.innerHTML = state.papers.slice(0, 50).map(p => `
-    <div class="log-entry">
-      <div class="le-hdr">
-        <div class="le-meta">
-          <span class="pp-grade-badge" style="color:${gradeColour(p.grade)};border-color:${gradeColour(p.grade)}">${p.grade}</span>
-          <span class="le-date">${p.date}</span>
-          <span class="le-hrs">${p.score}/${p.maxScore} · ${p.pct}%</span>
-          <span class="le-tag">${escapeHtml(p.subject)}</span>
-          <span style="color:var(--text3);font-size:12px">${escapeHtml(p.paperRef)}</span>
+  cont.innerHTML = state.papers.slice(0, 50).map(p => {
+    const qHtml = (p.questions || []).length
+      ? `<div class="pp-q-summary">${p.questions.map(q => {
+          const pct = q.max ? Math.round((q.score / q.max) * 100) : 0;
+          const cls = pct < 50 ? 'weak' : pct >= 80 ? 'strong' : '';
+          return `<span class="pp-q-tag ${cls}">${escapeHtml(q.topic)} · ${q.score}/${q.max}</span>`;
+        }).join('')}</div>`
+      : '';
+    return `
+      <div class="log-entry">
+        <div class="le-hdr">
+          <div class="le-meta">
+            <span class="pp-grade-badge" style="color:${gradeColour(p.grade)};border-color:${gradeColour(p.grade)}">${p.grade}</span>
+            <span class="le-date">${p.date}</span>
+            <span class="le-hrs">${p.score}/${p.maxScore} · ${p.pct}%</span>
+            <span class="le-tag">${escapeHtml(p.subject)}</span>
+            <span style="color:var(--text-3);font-size:var(--fs-12)">${escapeHtml(p.paperRef)}</span>
+          </div>
+          <button class="le-del" data-pdel="${p.id}" aria-label="Delete">✕</button>
         </div>
-        <button class="le-del" data-pdel="${p.id}" aria-label="Delete">✕</button>
+        ${p.notes ? `<div class="le-body">${escapeHtml(p.notes)}</div>` : ''}
+        ${qHtml}
       </div>
-      ${p.notes ? `<div class="le-body">${escapeHtml(p.notes)}</div>` : ''}
-    </div>
-  `).join('');
+    `;
+  }).join('');
   cont.querySelectorAll('[data-pdel]').forEach(b => b.addEventListener('click', () => {
     state.papers = state.papers.filter(p => p.id !== parseInt(b.dataset.pdel));
     renderPapers(); save();

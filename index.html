@@ -571,6 +571,37 @@ a{color:inherit;text-decoration:none}
 .set-desc{font-size:var(--fs-12);color:var(--text-3);margin-top:3px;max-width:320px;line-height:1.5}
 
 /* =========================================================================
+   WEAK AREAS
+   ========================================================================= */
+.weak-item{display:flex;align-items:center;gap:var(--s-3);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:10px 12px;margin-bottom:6px;transition:border-color var(--t)}
+.weak-item:hover{border-color:var(--accent)}
+.weak-rank{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--accent);min-width:24px;text-align:center;line-height:1}
+.weak-body{flex:1;min-width:0}
+.weak-name{font-size:var(--fs-13);font-weight:500;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.weak-reasons{font-size:var(--fs-11);color:var(--text-4);margin-top:3px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.weak-score{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text-3);min-width:32px;text-align:right}
+
+/* =========================================================================
+   PAPER QUESTION BREAKDOWN
+   ========================================================================= */
+.pp-q-toggle-btn{width:100%;justify-content:center;margin-bottom:var(--s-2)}
+.pp-questions-wrap{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:var(--s-3);margin-bottom:var(--s-3)}
+.pp-q-header{display:grid;grid-template-columns:32px 1fr 70px 70px 30px;gap:6px;font-size:var(--fs-11);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-4);padding:0 4px var(--s-2);align-items:center}
+.pp-q-row{display:grid;grid-template-columns:32px 1fr 70px 70px 30px;gap:6px;margin-bottom:5px;align-items:center}
+.pp-q-num{font-family:'Bebas Neue',sans-serif;font-size:var(--fs-15);color:var(--text-3);text-align:center}
+.pp-q-row select,.pp-q-row input{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:7px 9px;font-size:var(--fs-12);color:var(--text);min-width:0;transition:border-color var(--t-fast)}
+.pp-q-row select:focus,.pp-q-row input:focus{border-color:var(--accent)}
+.pp-q-row input{text-align:center}
+.pp-q-del{color:var(--text-4);font-size:14px;border-radius:var(--r-sm);transition:color var(--t-fast);padding:6px}
+.pp-q-del:hover{color:var(--bad)}
+.pp-q-add{width:100%;background:transparent;border:1px dashed var(--hairline-2);border-radius:var(--r-sm);padding:8px;font-size:var(--fs-12);color:var(--text-3);transition:all var(--t-fast);margin-top:var(--s-2)}
+.pp-q-add:hover{border-color:var(--accent);color:var(--accent)}
+.pp-q-summary{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px}
+.pp-q-tag{font-size:var(--fs-11);font-weight:500;padding:3px 8px;border-radius:var(--r-full);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-3)}
+.pp-q-tag.weak{color:var(--bad);border-color:var(--bad)}
+.pp-q-tag.strong{color:var(--good);border-color:var(--good)}
+
+/* =========================================================================
    ACHIEVEMENTS
    ========================================================================= */
 .achievements-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--s-2)}
@@ -722,6 +753,11 @@ a{color:inherit;text-decoration:none}
     </div>
 
     <div class="countdowns" id="countdowns"></div>
+
+    <div class="card mb-3">
+      <div class="card-title">Focus Next · Top 5 Weak Areas</div>
+      <div id="weak-list"></div>
+    </div>
 
     <div class="grid grid-2 mb-3">
       <div class="card">
@@ -887,6 +923,12 @@ a{color:inherit;text-decoration:none}
         </div>
       </div>
       <textarea class="j-notes" id="pp-notes" placeholder="Weak areas, topics to revisit, anything to note..."></textarea>
+      <button class="btn-ghost pp-q-toggle-btn" id="pp-q-toggle"><svg class="ico ico-sm"><use href="#i-plus"/></svg>Add per-question breakdown</button>
+      <div class="pp-questions-wrap" id="pp-questions" style="display:none">
+        <div class="pp-q-header"><span>Q#</span><span>Topic</span><span>Score</span><span>Max</span><span></span></div>
+        <div id="pp-q-rows"></div>
+        <button class="pp-q-add" id="pp-q-add">+ Add question</button>
+      </div>
       <button class="btn-primary" id="save-paper-btn"><svg class="ico ico-sm"><use href="#i-save"/></svg>Log Paper</button>
     </div>
     <div class="card-title" style="margin-top:var(--s-6)">Paper History</div>
