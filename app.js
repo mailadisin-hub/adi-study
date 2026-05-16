@@ -76,6 +76,60 @@ const KEY_DATES = [
 const STALE_DAYS = 14;
 
 /* =========================================================================
+   ACHIEVEMENTS CATALOGUE
+   ========================================================================= */
+const ACHIEVEMENTS = [
+  { id:'first_log',     name:'First Steps',           desc:'Save your first study log',          icon:'i-book',       check: s => (s.logs||[]).length >= 1 },
+  { id:'streak_3',      name:'On a Roll',             desc:'3-day study streak',                 icon:'i-flame',      check: s => calcStreakRaw(s) >= 3 },
+  { id:'streak_7',      name:'Week Warrior',          desc:'7-day study streak',                 icon:'i-flame',      check: s => calcStreakRaw(s) >= 7 },
+  { id:'streak_14',     name:'Fortnight Fighter',     desc:'14-day study streak',                icon:'i-flame',      check: s => calcStreakRaw(s) >= 14 },
+  { id:'streak_30',     name:'Month of Madness',      desc:'30-day study streak',                icon:'i-flame',      check: s => calcStreakRaw(s) >= 30 },
+  { id:'streak_100',    name:'Iron Will',             desc:'100-day study streak',               icon:'i-flame',      check: s => calcStreakRaw(s) >= 100 },
+  { id:'first_paper',   name:'Paper Trail',           desc:'Log your first past paper',          icon:'i-doc',        check: s => (s.papers||[]).length >= 1 },
+  { id:'paper_a',       name:'A-Grade Material',      desc:'Score grade A on a paper',           icon:'i-doc',        check: s => (s.papers||[]).some(p => p.grade === 'A' || p.grade === 'A*') },
+  { id:'paper_astar',   name:'Top of the Class',      desc:'Score A* on a paper',                icon:'i-doc',        check: s => (s.papers||[]).some(p => p.grade === 'A*') },
+  { id:'paper_5',       name:'Practice Makes Perfect',desc:'Log 5 past papers',                  icon:'i-doc',        check: s => (s.papers||[]).length >= 5 },
+  { id:'paper_20',      name:'Drill Sergeant',        desc:'Log 20 past papers',                 icon:'i-doc',        check: s => (s.papers||[]).length >= 20 },
+  { id:'paper_90',      name:'Near Perfect',          desc:'Score 90%+ on a paper',              icon:'i-doc',        check: s => (s.papers||[]).some(p => p.pct >= 90) },
+  { id:'maths_all',     name:'Maths Maven',           desc:'Touch every Maths subtopic',         icon:'i-check-list', check: s => subjectAllStudied('maths', s) },
+  { id:'fm_all',        name:'FM Fanatic',            desc:'Touch every FM subtopic',            icon:'i-check-list', check: s => subjectAllStudied('fm', s) },
+  { id:'phys_all',      name:'Physics Phenom',        desc:'Touch every Physics subtopic',       icon:'i-check-list', check: s => subjectAllStudied('phys', s) },
+  { id:'all_studied',   name:'Full Sweep',            desc:'Study every subtopic at least once', icon:'i-check-list', check: s => ['maths','fm','phys'].every(k => subjectAllStudied(k, s)) },
+  { id:'pomo_1',        name:'In the Zone',           desc:'Complete your first Pomodoro',       icon:'i-timer',      check: s => (s.pomoTotal || 0) >= 1 },
+  { id:'pomo_25',       name:'Focus Master',          desc:'Complete 25 Pomodoros',              icon:'i-timer',      check: s => (s.pomoTotal || 0) >= 25 },
+  { id:'pomo_100',      name:'Deep Work Pro',         desc:'Complete 100 Pomodoros',             icon:'i-timer',      check: s => (s.pomoTotal || 0) >= 100 },
+  { id:'level_5',       name:'Halfway Hero',          desc:'Reach Level 5',                      icon:'i-target',     check: s => (s.xp||0) >= LEVELS[4].min },
+  { id:'level_8',       name:'A* Machine',            desc:'Reach the highest rank',             icon:'i-target',     check: s => (s.xp||0) >= LEVELS[LEVELS.length-1].min },
+  { id:'marathon_day',  name:'Marathon Day',          desc:'Log 8+ hours of study in a day',     icon:'i-flame',      check: s => Object.values(s.dayMinutes||{}).some(m => m >= 480) },
+  { id:'freeze_earned', name:'Cool Under Fire',       desc:'Earn your first streak freeze',      icon:'i-flame',      check: s => (s.freezesEarned||0) >= 1 },
+];
+
+function subjectAllStudied(key, s){
+  const subs = SUBTOPICS[key] || [];
+  if (!subs.length) return false;
+  return subs.every((arr, ti) => arr.every((_, si) => (s.topics||{})[`${key}_${ti}_${si}`]?.d));
+}
+
+function checkAchievements(){
+  if (!state.achievements) state.achievements = [];
+  const newlyEarned = [];
+  ACHIEVEMENTS.forEach(a => {
+    if (state.achievements.includes(a.id)) return;
+    try {
+      if (a.check(state)) {
+        state.achievements.push(a.id);
+        newlyEarned.push(a);
+      }
+    } catch (e) { /* check function may fail before app fully boots */ }
+  });
+  if (newlyEarned.length) {
+    confetti();
+    newlyEarned.forEach((a, i) => setTimeout(() => toast(`🏆 ${a.name}`), i * 1400));
+    renderAchievements();
+  }
+}
+
+/* =========================================================================
    STATE
    ========================================================================= */
 let state = defaultState();
@@ -86,19 +140,26 @@ let suppressSync = false;
 
 function defaultState(){
   return {
-    v: 1,
+    v: 2,
     grades: {},                  // {mg_m,mp_m,mg_f,mp_f,mg_p,mp_p}
-    topics: {},                  // {'maths_3': {d:1, t:timestamp}}
+    topics: {},                  // {'maths_3_0': {d:1, t:ts, c:1-5}}  c = confidence
     xp: 0,
     dayMinutes: {},              // {'2026-05-14': 210}
     logs: [],                    // [{id,date,hours,mood,subj,notes,topics}]
     papers: [],                  // [{id,date,subject,paperRef,score,maxScore,pct,grade,notes}]
     pomo: {work:25, short:5, long:15, before:4},
     pomoToday: {date:'', completed:0, minutes:0},
+    pomoTotal: 0,                // lifetime completed pomodoros
+    freezes: 0,                  // available streak freezes
+    freezesEarned: 0,            // total ever earned (prevents double-award)
+    shieldedDays: [],            // ['2026-05-13'] — days protected by freeze
+    achievements: [],            // ['streak_3', ...]
     theme: 'dark',
     updatedAt: 0,
   };
 }
+
+const CONFIDENCE_STALE = { 1: 3, 2: 5, 3: 10, 4: 14, 5: 21 }; // days until stale per confidence level
 
 function loadLocal(){
   try {
@@ -113,6 +174,7 @@ function saveLocal(){
 }
 
 function save(){
+  checkAchievements();
   saveLocal();
   if (saveTimer) clearTimeout(saveTimer);
   setSync('syncing');
@@ -229,16 +291,19 @@ function attachCloud(){
    BOOT
    ========================================================================= */
 function bootApp(){
+  applyFreezesIfNeeded();
   setupNav();
   setupTheme();
   setupGrades();
   setupRevision();
   setupJournal();
   setupPapers();
+  setupAchievements();
   setupSettings();
   setupPomodoro();
   setupKeyboard();
   renderAll();
+  checkAchievements();
 }
 
 function renderAll(){
@@ -250,6 +315,7 @@ function renderAll(){
   renderJournal();
   renderPapers();
   renderDashboard();
+  renderAchievements();
   renderPomodoro();
 }
 
@@ -341,7 +407,14 @@ function renderHeader(){
   document.getElementById('xp-fill').style.width = pct + '%';
   document.getElementById('xp-cur').textContent = xp + ' XP';
   document.getElementById('xp-next').textContent = next + ' XP';
-  animateNumber(document.getElementById('streak-num'), calcStreak());
+  const streak = calcStreak();
+  awardFreezesForStreak(streak);
+  animateNumber(document.getElementById('streak-num'), streak);
+  const fzEl = document.getElementById('freeze-count');
+  const fzBadge = document.getElementById('freeze-badge');
+  const freezes = state.freezes || 0;
+  if (fzEl) fzEl.textContent = freezes;
+  if (fzBadge) fzBadge.style.display = freezes > 0 ? 'inline-flex' : 'none';
 }
 
 function addXP(n, reason){
@@ -386,17 +459,60 @@ function markToday(minutes){
   const k = todayKey();
   state.dayMinutes[k] = (state.dayMinutes[k] || 0) + (minutes || 1);
 }
-function calcStreak(){
-  const days = Object.keys(state.dayMinutes || {}).filter(k => state.dayMinutes[k] > 0);
-  if (!days.length) return 0;
+function calcStreakRaw(s){
+  s = s || state;
+  const studiedSet = new Set(Object.keys(s.dayMinutes||{}).filter(k => s.dayMinutes[k] > 0));
+  (s.shieldedDays || []).forEach(k => studiedSet.add(k));
+  if (!studiedSet.size) return 0;
   let streak = 0;
   const d = new Date(); d.setHours(0,0,0,0);
-  while (true) {
-    const k = dayKey(d);
-    if (days.includes(k)) { streak++; d.setDate(d.getDate()-1); }
-    else break;
+  if (!studiedSet.has(dayKey(d))) d.setDate(d.getDate() - 1);
+  while (studiedSet.has(dayKey(d))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
   }
   return streak;
+}
+
+function calcStreak(){ return calcStreakRaw(state); }
+
+function applyFreezesIfNeeded(){
+  const studied = Object.keys(state.dayMinutes||{}).filter(k => state.dayMinutes[k] > 0).sort();
+  const shielded = state.shieldedDays || [];
+  const all = [...new Set([...studied, ...shielded])].sort();
+  if (!all.length) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const lastKey = all[all.length - 1];
+  const lastD = new Date(lastKey + 'T00:00:00');
+  const gap = Math.round((today - lastD) / 86400000);
+  if (gap < 2) return;
+  const missing = gap - 1;
+  let available = state.freezes || 0;
+  let used = 0;
+  const newShielded = [...shielded];
+  for (let i = 1; i <= missing && available > 0; i++) {
+    const d = new Date(lastD); d.setDate(lastD.getDate() + i);
+    const k = dayKey(d);
+    if (newShielded.includes(k)) continue;
+    newShielded.push(k);
+    available--; used++;
+  }
+  if (used) {
+    state.shieldedDays = newShielded;
+    state.freezes = available;
+    setTimeout(() => toast(`Used ${used} freeze${used>1?'s':''} to protect your streak`), 1200);
+  }
+}
+
+function awardFreezesForStreak(streak){
+  const milestone = Math.floor(streak / 7);
+  const earned = state.freezesEarned || 0;
+  if (milestone > earned) {
+    const diff = milestone - earned;
+    state.freezes = (state.freezes || 0) + diff;
+    state.freezesEarned = milestone;
+    setTimeout(() => toast(`Earned ${diff} streak freeze${diff>1?'s':''}`), 600);
+  }
 }
 
 /* =========================================================================
@@ -552,8 +668,11 @@ function buildRevisionUI(){
         const item = document.createElement('div');
         item.className = 'subt';
         item.dataset.id = id;
-        item.innerHTML = `<div class="subt-box"></div><div class="subt-txt">${sub}</div><div class="subt-age"></div>`;
-        item.addEventListener('click', e => { e.stopPropagation(); toggleSubtopic(id); });
+        item.innerHTML = `<div class="subt-conf" title="Click to set confidence 1→5, again to clear"></div>
+                          <div class="subt-txt">${sub}</div>
+                          <div class="subt-age"></div>`;
+        item.querySelector('.subt-conf').addEventListener('click', e => { e.stopPropagation(); cycleConfidence(id); });
+        item.addEventListener('click', e => { e.stopPropagation(); cycleConfidence(id); });
         inner.appendChild(item);
       });
       body.appendChild(inner);
@@ -566,19 +685,32 @@ function buildRevisionUI(){
   });
 }
 
-function toggleSubtopic(id){
-  const cur = state.topics[id];
-  if (cur && cur.d) {
-    state.topics[id] = { d:0, t: cur.t };
-    addXP(-5, 'subtopic undone');
+function cycleConfidence(id){
+  const cur = state.topics[id] || {};
+  const oldConf = cur.c || 0;
+  const newConf = oldConf >= 5 ? 0 : oldConf + 1;
+  if (newConf === 0) {
+    // wipe done flag but remember first-completion to prevent XP farming
+    state.topics[id] = { d:0, t: cur.t || 0, firstDone: cur.firstDone || cur.d ? true : false };
   } else {
-    state.topics[id] = { d:1, t: Date.now() };
-    addXP(5, 'subtopic done');
+    const isFirstTime = !(cur.firstDone || cur.d);
+    state.topics[id] = { d:1, t: Date.now(), c: newConf, firstDone: true };
+    if (isFirstTime) addXP(5, 'subtopic studied');
   }
   markToday(0);
   renderRevision();
   renderDashboard();
   save();
+}
+
+// Back-compat for any old callsite
+function toggleSubtopic(id){ cycleConfidence(id); }
+
+function isStale(t){
+  if (!t || !t.d) return false;
+  const age = Math.floor((Date.now() - t.t) / 86400000);
+  const threshold = CONFIDENCE_STALE[t.c || 3] ?? STALE_DAYS;
+  return age >= threshold;
 }
 
 function topicAgeDays(id){
@@ -599,17 +731,21 @@ function renderRevision(){
         const item = document.querySelector(`.subt[data-id="${id}"]`);
         const t = state.topics[id];
         const age = topicAgeDays(id);
+        const conf = (t && t.d) ? (t.c || 3) : 0;
+        const stale = isStale(t);
         subjTotal++;
         if (t && t.d) {
-          if (age >= STALE_DAYS) { tStale++; subjStale++; }
+          if (stale) { tStale++; subjStale++; }
           else { tFresh++; subjFresh++; }
         }
         if (item) {
-          const isFresh = !!(t && t.d) && age < STALE_DAYS;
-          const isStale = !!(t && t.d) && age >= STALE_DAYS;
-          item.classList.toggle('done', isFresh);
-          item.classList.toggle('stale', isStale);
-          item.querySelector('.subt-box').textContent = isFresh ? '✓' : isStale ? '!' : '';
+          item.classList.toggle('done', !!(t && t.d) && !stale);
+          item.classList.toggle('stale', stale);
+          const dot = item.querySelector('.subt-conf');
+          if (dot) {
+            dot.className = 'subt-conf' + (conf ? ` c${conf}` : '');
+            dot.setAttribute('data-conf', conf);
+          }
           item.querySelector('.subt-age').textContent = (t && t.d) ? `${age}d` : '';
         }
       });
@@ -678,6 +814,7 @@ function renderDueList(){
   Object.keys(state.topics).forEach(id => {
     const t = state.topics[id];
     if (!t || !t.d) return;
+    if (!isStale(t)) return;
     const parts = id.split('_');
     if (parts.length !== 3) return; // ignore legacy topic-level ticks
     const [subj, tiStr, siStr] = parts;
@@ -686,21 +823,23 @@ function renderDueList(){
     const topic = TOPICS[subj]?.[ti];
     if (!subtopic || !topic) return;
     const age = Math.floor((Date.now() - t.t) / 86400000);
-    if (age >= STALE_DAYS) due.push({ id, age, subtopic, topic, subj });
+    due.push({ id, age, subtopic, topic, subj, conf: t.c || 3 });
   });
-  due.sort((a,b) => b.age - a.age);
+  // Sort: lowest confidence first, then oldest
+  due.sort((a,b) => (a.conf - b.conf) || (b.age - a.age));
   if (!due.length) {
-    wrap.innerHTML = '<div class="empty-msg">All revised subtopics still fresh ✓</div>';
+    wrap.innerHTML = '<div class="empty-msg">All studied subtopics still fresh</div>';
     return;
   }
   wrap.innerHTML = due.slice(0, 8).map(d => `
     <div class="due-item">
       <div style="min-width:0;flex:1">
         <div style="display:flex;align-items:center;gap:6px">
-          <span style="color:${SC[d.subj]};font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase">${SN[d.subj].split(' ')[0]}</span>
+          <span class="subt-conf c${d.conf}" style="width:10px;height:10px;border-width:1.5px"></span>
+          <span style="color:${SC[d.subj]};font-weight:700;font-size:var(--fs-11);letter-spacing:.08em;text-transform:uppercase">${SN[d.subj].split(' ')[0]}</span>
           <span class="due-name">${escapeHtml(d.subtopic)}</span>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(d.topic)}</div>
+        <div style="font-size:var(--fs-11);color:var(--text-4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(d.topic)}</div>
       </div>
       <div class="due-meta ${d.age >= 28 ? 'urgent' : ''}">${d.age}d</div>
     </div>`).join('');
@@ -1013,6 +1152,7 @@ function pomoComplete(){
   if (PomoState.stage === 'work') {
     state.pomoToday.completed++;
     state.pomoToday.minutes += state.pomo.work;
+    state.pomoTotal = (state.pomoTotal || 0) + 1;
     markToday(state.pomo.work);
     addXP(state.pomo.work, 'pomodoro');
     // long break every Nth
@@ -1076,6 +1216,46 @@ function beep(){
 /* =========================================================================
    SETTINGS
    ========================================================================= */
+/* =========================================================================
+   ACHIEVEMENTS UI
+   ========================================================================= */
+function setupAchievements(){}
+
+function renderAchievements(){
+  const grid = document.getElementById('achievements-grid');
+  if (!grid) return;
+  const earned = new Set(state.achievements || []);
+  grid.innerHTML = ACHIEVEMENTS.map(a => {
+    const got = earned.has(a.id);
+    return `
+      <div class="ach ${got ? 'earned' : 'locked'}" title="${escapeHtml(a.desc)}">
+        <div class="ach-icon"><svg class="ico"><use href="#${a.icon}"/></svg></div>
+        <div class="ach-text">
+          <div class="ach-name">${escapeHtml(a.name)}</div>
+          <div class="ach-desc">${escapeHtml(a.desc)}</div>
+        </div>
+        ${got ? '<div class="ach-check">✓</div>' : ''}
+      </div>`;
+  }).join('');
+  document.querySelectorAll('.ach-count-target').forEach(el => {
+    el.textContent = `${earned.size}/${ACHIEVEMENTS.length}`;
+  });
+
+  const recent = document.getElementById('ach-recent');
+  if (recent) {
+    const last = ACHIEVEMENTS.filter(a => earned.has(a.id)).slice(-4);
+    if (!last.length) {
+      recent.innerHTML = '<div class="empty-msg" style="padding:var(--s-3)">No achievements yet — keep studying.</div>';
+    } else {
+      recent.innerHTML = last.map(a => `
+        <div class="ach-pill" title="${escapeHtml(a.desc)}">
+          <svg class="ico ico-sm"><use href="#${a.icon}"/></svg>
+          <span>${escapeHtml(a.name)}</span>
+        </div>`).join('');
+    }
+  }
+}
+
 function setupSettings(){
   document.getElementById('export-btn').addEventListener('click', exportData);
   document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
