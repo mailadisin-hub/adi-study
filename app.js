@@ -161,9 +161,596 @@ function defaultState(){
     planHours: {                 // weekly target hours per subject
       Maths: 8, 'Further Maths': 6, Physics: 6, 'ESAT / TMUA': 2, 'Personal Statement': 1
     },
+    esatBank: [],                // [{id,question,options:[],correct:0,subj}]
+    notifEnabled: false,
+    notifTime: '20:00',
     theme: 'dark',
     updatedAt: 0,
   };
+}
+
+/* =========================================================================
+   PRACTICE — Mock presets + Formula reference (static data)
+   ========================================================================= */
+const MOCK_PRESETS = [
+  { subj:'Maths',         name:'Paper 1',  mins:120 },
+  { subj:'Maths',         name:'Paper 2',  mins:120 },
+  { subj:'Maths',         name:'Paper 3',  mins:120 },
+  { subj:'Further Maths', name:'Paper 1',  mins:120 },
+  { subj:'Further Maths', name:'Paper 2',  mins:120 },
+  { subj:'Physics',       name:'Paper 1',  mins:135 },
+  { subj:'Physics',       name:'Paper 2',  mins:135 },
+  { subj:'Physics',       name:'Paper 3',  mins:90  },
+  { subj:'ESAT',          name:'Maths 1',  mins:40  },
+  { subj:'ESAT',          name:'Maths 2',  mins:40  },
+  { subj:'ESAT',          name:'Physics',  mins:40  },
+];
+
+const FORMULAS = {
+  'Pure Maths': [
+    { group:'Trigonometry', items:[
+      'sin²θ + cos²θ = 1',
+      '1 + tan²θ = sec²θ',
+      '1 + cot²θ = cosec²θ',
+      'sin(A±B) = sinA cosB ± cosA sinB',
+      'cos(A±B) = cosA cosB ∓ sinA sinB',
+      'tan(A±B) = (tanA ± tanB) / (1 ∓ tanA tanB)',
+      'sin2A = 2 sinA cosA',
+      'cos2A = cos²A − sin²A = 1 − 2sin²A = 2cos²A − 1',
+      'R sin(x+α): R = √(a²+b²), tanα = b/a',
+    ]},
+    { group:'Calculus', items:[
+      'd/dx (eˣ) = eˣ; d/dx (ln x) = 1/x',
+      'd/dx (sin x) = cos x; d/dx (cos x) = −sin x',
+      'd/dx (tan x) = sec²x; d/dx (sec x) = sec x tan x',
+      '∫ uv′ dx = uv − ∫ u′v dx     (integration by parts)',
+      'Reverse chain: ∫ f′(g(x))·g′(x) dx = f(g(x)) + C',
+      'Volume around x-axis: V = π ∫ y² dx',
+    ]},
+    { group:'Series & Expansion', items:[
+      'Arithmetic: Sₙ = n/2 (2a + (n−1)d)',
+      'Geometric: Sₙ = a(1−rⁿ)/(1−r);  S∞ = a/(1−r), |r|<1',
+      '(1+x)ⁿ = 1 + nx + n(n−1)/2! x² + …  (|x|<1 for non-integer n)',
+    ]},
+  ],
+  'Further Maths': [
+    { group:'Complex Numbers', items:[
+      'z = r(cosθ + i sinθ) = re^(iθ)',
+      'de Moivre: [r(cosθ + i sinθ)]ⁿ = rⁿ (cos nθ + i sin nθ)',
+      'nth roots of unity: e^(2πik/n) for k = 0…n−1',
+    ]},
+    { group:'Hyperbolics', items:[
+      'sinh x = (eˣ − e⁻ˣ)/2;  cosh x = (eˣ + e⁻ˣ)/2',
+      'cosh²x − sinh²x = 1',
+      'd/dx (sinh x) = cosh x;  d/dx (cosh x) = sinh x',
+      'arsinh x = ln(x + √(x²+1))',
+    ]},
+    { group:'Matrices', items:[
+      'det(AB) = det(A) det(B)',
+      'A is invertible ⇔ det(A) ≠ 0',
+      'Eigenvalues: solve det(A − λI) = 0',
+      'For 2D rotation by θ: [cosθ −sinθ; sinθ cosθ]',
+    ]},
+    { group:'Polar & Maclaurin', items:[
+      'Area in polar: A = ½ ∫ r² dθ',
+      'eˣ = 1 + x + x²/2! + x³/3! + …',
+      'sin x = x − x³/3! + x⁵/5! − …',
+      'cos x = 1 − x²/2! + x⁴/4! − …',
+      'ln(1+x) = x − x²/2 + x³/3 − …,  |x|<1',
+    ]},
+  ],
+  'Physics': [
+    { group:'Mechanics & SHM', items:[
+      'a = −ω²x;  T = 2π/ω;  x = A cos(ωt+φ)',
+      'Pendulum: T = 2π √(l/g);  Spring: T = 2π √(m/k)',
+      'Energy in SHM: E = ½ m ω² A²',
+    ]},
+    { group:'Fields', items:[
+      'Newton: F = GMm/r²;  g = GM/r²;  V = −GM/r',
+      'Coulomb: F = Qq/(4πε₀r²);  E = Q/(4πε₀r²);  V = Q/(4πε₀r)',
+      'Magnetic force: F = BIL;  F = BQv',
+    ]},
+    { group:'Electric Circuits', items:[
+      'Capacitor: Q = CV;  E = ½CV² = ½QV',
+      'Discharge: V = V₀ e^(−t/RC);  τ = RC',
+      'Faraday: ε = −N dΦ/dt;  Φ = BA',
+      'Transformer: Vₚ/Vₛ = Nₚ/Nₛ',
+    ]},
+    { group:'Thermal & Quantum', items:[
+      'pV = nRT;  ½mc̄² = (3/2)kT',
+      'Q = mcΔT;  L = ml (latent heat)',
+      'E = hf;  λ = h/p   (de Broglie)',
+      'Photoelectric: hf = φ + ½mvₘₐₓ²',
+    ]},
+    { group:'Nuclear & Astro', items:[
+      'R = r₀ A^(1/3)',
+      'N = N₀ e^(−λt);  T½ = ln2 / λ',
+      'Doppler: z = Δλ/λ ≈ v/c',
+      'Hubble: v = H₀ d',
+    ]},
+  ],
+};
+
+/* =========================================================================
+   PRACTICE — Setup + render
+   ========================================================================= */
+function setupPractice(){
+  // tabs
+  document.querySelectorAll('.practice-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const ptab = btn.dataset.ptab;
+      document.querySelectorAll('.practice-tab').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.practice-panel').forEach(p => p.classList.toggle('active', p.dataset.ppanel === ptab));
+    });
+  });
+
+  // mock presets
+  const presetsEl = document.getElementById('mock-presets');
+  presetsEl.innerHTML = MOCK_PRESETS.map(p => `
+    <div class="mock-preset" data-mock-subj="${escapeAttr(p.subj)}" data-mock-name="${escapeAttr(p.name)}" data-mock-mins="${p.mins}">
+      <div class="mock-preset-subj">${escapeHtml(p.subj)}</div>
+      <div class="mock-preset-name">${escapeHtml(p.name)}</div>
+      <div class="mock-preset-dur">${p.mins} min</div>
+    </div>
+  `).join('');
+  presetsEl.querySelectorAll('.mock-preset').forEach(card => {
+    card.addEventListener('click', () => startMock(card.dataset.mockSubj, card.dataset.mockName, parseInt(card.dataset.mockMins)));
+  });
+
+  document.getElementById('mock-custom-start').addEventListener('click', () => {
+    const subj = document.getElementById('mock-custom-subj').value;
+    const name = document.getElementById('mock-custom-name').value.trim() || 'Custom paper';
+    const mins = parseInt(document.getElementById('mock-custom-mins').value) || 60;
+    startMock(subj, name, mins);
+  });
+
+  // mock overlay controls
+  document.getElementById('mock-pause').addEventListener('click', mockPause);
+  document.getElementById('mock-finish').addEventListener('click', mockFinish);
+  document.getElementById('mock-cancel').addEventListener('click', mockCancel);
+  document.getElementById('mock-save-log').addEventListener('click', mockSaveLog);
+  document.getElementById('mock-skip-log').addEventListener('click', mockCloseOverlay);
+
+  // ESAT
+  renderEsatNewOpts();
+  document.getElementById('esat-add-btn').addEventListener('click', esatAddQuestion);
+  document.getElementById('esat-start-drill').addEventListener('click', esatStartDrill);
+  document.getElementById('esat-skip').addEventListener('click', () => esatNextQuestion(null));
+  document.getElementById('esat-end').addEventListener('click', esatEndDrill);
+
+  renderFormulas();
+  renderEsatBank();
+}
+
+/* =========================================================================
+   MOCK TIMER
+   ========================================================================= */
+const MockState = { running:false, paused:false, ticker:null, ends:0, paperLabel:'', subj:'', totalSec:0, remaining:0 };
+
+function startMock(subj, name, mins){
+  MockState.subj = subj;
+  MockState.paperLabel = name;
+  MockState.totalSec = mins * 60;
+  MockState.remaining = MockState.totalSec;
+  MockState.ends = Date.now() + MockState.totalSec * 1000;
+  MockState.running = true;
+  MockState.paused = false;
+  document.getElementById('mock-subj').textContent = `${subj} · ${name}`;
+  document.getElementById('mock-finish-form').classList.remove('open');
+  document.getElementById('mock-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('mock-pause').textContent = 'Pause';
+  updateMockDisplay();
+  MockState.ticker = setInterval(mockTick, 250);
+}
+function mockTick(){
+  if (MockState.paused) return;
+  MockState.remaining = Math.max(0, Math.round((MockState.ends - Date.now()) / 1000));
+  updateMockDisplay();
+  if (MockState.remaining <= 0) {
+    clearInterval(MockState.ticker);
+    MockState.running = false;
+    toast("Time's up — log your result");
+    mockShowFinishForm();
+    beep();
+  }
+}
+function updateMockDisplay(){
+  const m = Math.floor(MockState.remaining / 60);
+  const s = MockState.remaining % 60;
+  const h = Math.floor(m / 60);
+  const text = (h ? String(h).padStart(2,'0') + ':' : '') + String(m % 60).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  const clock = document.getElementById('mock-clock');
+  clock.textContent = text;
+  clock.className = 'mock-clock';
+  if (MockState.remaining < 60) clock.classList.add('bad');
+  else if (MockState.remaining < 300) clock.classList.add('warn');
+  const pct = (MockState.remaining / MockState.totalSec) * 100;
+  document.getElementById('mock-prog-bar').style.width = pct + '%';
+  const elapsed = MockState.totalSec - MockState.remaining;
+  const eMin = Math.floor(elapsed / 60);
+  document.getElementById('mock-elapsed').textContent = `${eMin} min elapsed of ${Math.round(MockState.totalSec/60)}`;
+}
+function mockPause(){
+  if (!MockState.running) return;
+  MockState.paused = !MockState.paused;
+  if (MockState.paused) {
+    MockState.remaining = Math.round((MockState.ends - Date.now()) / 1000);
+    document.getElementById('mock-pause').textContent = 'Resume';
+  } else {
+    MockState.ends = Date.now() + MockState.remaining * 1000;
+    document.getElementById('mock-pause').textContent = 'Pause';
+  }
+}
+function mockFinish(){ mockShowFinishForm(); }
+function mockShowFinishForm(){
+  clearInterval(MockState.ticker);
+  MockState.running = false;
+  document.getElementById('mock-finish-form').classList.add('open');
+}
+function mockSaveLog(){
+  const score = parseFloat(document.getElementById('mock-result-score').value);
+  const max = parseFloat(document.getElementById('mock-result-max').value);
+  if (isNaN(score) || isNaN(max) || max <= 0) { toast('Enter valid score and max'); return; }
+  const subj = MockState.subj === 'Maths' || MockState.subj === 'Further Maths' || MockState.subj === 'Physics' ? MockState.subj : 'Maths';
+  const pct = Math.round((score / max) * 100);
+  const grade = scoreToGrade(subj, pct);
+  const entry = { id: Date.now(), date: todayKey(), subject: subj, paperRef: `Mock: ${MockState.paperLabel}`, score, maxScore: max, pct, grade, notes:'', questions:[] };
+  state.papers = state.papers || [];
+  state.papers.unshift(entry);
+  const minutesUsed = Math.round((MockState.totalSec - MockState.remaining) / 60);
+  markToday(minutesUsed);
+  addXP(Math.round(pct / 5), 'mock exam');
+  toast(`Logged · ${pct}% · ${grade}`);
+  renderPapers(); renderDashboard(); save();
+  document.getElementById('mock-result-score').value = '';
+  document.getElementById('mock-result-max').value = '';
+  mockCloseOverlay();
+}
+function mockCancel(){
+  if (MockState.running && !confirm('Cancel this mock? Time will not be logged.')) return;
+  mockCloseOverlay();
+}
+function mockCloseOverlay(){
+  clearInterval(MockState.ticker);
+  MockState.running = false;
+  document.getElementById('mock-overlay').classList.remove('open');
+  document.getElementById('mock-finish-form').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+/* =========================================================================
+   ESAT DRILL
+   ========================================================================= */
+const EsatDrill = { active:false, order:[], idx:0, correct:0, attempts:0 };
+
+function renderEsatNewOpts(){
+  const wrap = document.getElementById('esat-new-opts');
+  if (!wrap) return;
+  const letters = ['A','B','C','D','E'];
+  wrap.innerHTML = letters.map((L, i) => `
+    <div class="esat-opt-row">
+      <div class="esat-opt-letter">${L}</div>
+      <input type="text" id="esat-new-opt-${i}" placeholder="Option ${L}${i >= 3 ? ' (optional)' : ''}">
+      <input type="radio" name="esat-correct" value="${i}" class="esat-opt-radio" ${i === 0 ? 'checked' : ''}>
+    </div>
+  `).join('');
+}
+
+function esatAddQuestion(){
+  const q = document.getElementById('esat-new-q').value.trim();
+  const opts = [0,1,2,3,4].map(i => document.getElementById(`esat-new-opt-${i}`).value.trim()).filter(o => o);
+  const correctRadio = document.querySelector('input[name="esat-correct"]:checked');
+  const correct = correctRadio ? parseInt(correctRadio.value) : 0;
+  const subj = document.getElementById('esat-new-subj').value;
+  if (!q || opts.length < 2) { toast('Need a question and at least two options'); return; }
+  if (correct >= opts.length) { toast('Selected correct option is empty'); return; }
+  state.esatBank = state.esatBank || [];
+  state.esatBank.push({ id: Date.now(), question: q, options: opts, correct, subj });
+  document.getElementById('esat-new-q').value = '';
+  [0,1,2,3,4].forEach(i => { const el = document.getElementById(`esat-new-opt-${i}`); if (el) el.value = ''; });
+  renderEsatBank(); save();
+  toast('Question added');
+}
+
+function renderEsatBank(){
+  const wrap = document.getElementById('esat-bank-list');
+  if (!wrap) return;
+  const bank = state.esatBank || [];
+  if (!bank.length) {
+    wrap.innerHTML = '<div class="empty-msg">No questions yet — add one below to start building your drill bank.</div>';
+    return;
+  }
+  wrap.innerHTML = bank.map(q => `
+    <div class="esat-bank-card">
+      <div class="esat-bank-q">${escapeHtml(q.question)} <span style="color:var(--text-4);font-size:var(--fs-11)">· ${escapeHtml(q.subj)} · ${q.options.length} opts</span></div>
+      <button class="le-del" data-edel="${q.id}" aria-label="Delete">✕</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('[data-edel]').forEach(b => b.addEventListener('click', () => {
+    state.esatBank = state.esatBank.filter(q => q.id !== parseInt(b.dataset.edel));
+    renderEsatBank(); save();
+  }));
+}
+
+function esatStartDrill(){
+  const bank = state.esatBank || [];
+  if (!bank.length) { toast('Add some questions first'); return; }
+  EsatDrill.active = true;
+  EsatDrill.order = bank.map(q => q.id).sort(() => Math.random() - 0.5);
+  EsatDrill.idx = 0;
+  EsatDrill.correct = 0;
+  EsatDrill.attempts = 0;
+  document.getElementById('esat-bank-view').style.display = 'none';
+  document.getElementById('esat-drill-view').style.display = 'block';
+  esatShowCurrent();
+}
+
+function esatShowCurrent(){
+  const q = (state.esatBank || []).find(x => x.id === EsatDrill.order[EsatDrill.idx]);
+  if (!q) { esatEndDrill(); return; }
+  document.getElementById('esat-q').textContent = `Q${EsatDrill.idx + 1} · ${q.question}`;
+  const opts = document.getElementById('esat-opts');
+  const letters = ['A','B','C','D','E'];
+  opts.innerHTML = q.options.map((o, i) => `<button class="esat-drill-opt" data-i="${i}"><strong style="margin-right:8px;color:var(--text-4)">${letters[i]}</strong>${escapeHtml(o)}</button>`).join('');
+  opts.querySelectorAll('.esat-drill-opt').forEach(btn => btn.addEventListener('click', () => esatAnswer(parseInt(btn.dataset.i), q)));
+}
+
+function esatAnswer(i, q){
+  EsatDrill.attempts++;
+  const right = i === q.correct;
+  if (right) EsatDrill.correct++;
+  document.querySelectorAll('.esat-drill-opt').forEach((b, k) => {
+    b.classList.toggle('right', k === q.correct);
+    if (k === i && !right) b.classList.add('wrong');
+    b.style.pointerEvents = 'none';
+  });
+  updateEsatScore();
+  setTimeout(() => esatNextQuestion(right), 900);
+}
+
+function esatNextQuestion(){
+  if (EsatDrill.idx + 1 >= EsatDrill.order.length) { esatEndDrill(); return; }
+  EsatDrill.idx++;
+  esatShowCurrent();
+}
+
+function updateEsatScore(){
+  document.getElementById('esat-correct').textContent = EsatDrill.correct;
+  document.getElementById('esat-attempts').textContent = EsatDrill.attempts;
+  document.getElementById('esat-acc').textContent = EsatDrill.attempts ? Math.round(EsatDrill.correct/EsatDrill.attempts*100) + '%' : '—';
+}
+
+function esatEndDrill(){
+  if (EsatDrill.active && EsatDrill.attempts > 0) {
+    const acc = Math.round(EsatDrill.correct/EsatDrill.attempts*100);
+    addXP(Math.max(5, Math.round(acc/5)), 'ESAT drill');
+    markToday(Math.min(30, EsatDrill.attempts));
+    toast(`Drill done · ${EsatDrill.correct}/${EsatDrill.attempts} (${acc}%)`);
+  }
+  EsatDrill.active = false;
+  document.getElementById('esat-bank-view').style.display = 'block';
+  document.getElementById('esat-drill-view').style.display = 'none';
+  save();
+}
+
+/* =========================================================================
+   FORMULAS
+   ========================================================================= */
+function renderFormulas(){
+  const wrap = document.getElementById('formula-cards');
+  if (!wrap) return;
+  wrap.innerHTML = Object.entries(FORMULAS).map(([subj, groups]) => `
+    <div class="formula-card">
+      <div class="formula-head">
+        <span class="formula-caret">▶</span>
+        <span class="formula-subj">${escapeHtml(subj)}</span>
+      </div>
+      <div class="formula-body"><div class="formula-list">
+        ${groups.map(g => `
+          <div class="formula-group">
+            <div class="formula-group-name">${escapeHtml(g.group)}</div>
+            ${g.items.map(item => `<div class="formula-item">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        `).join('')}
+      </div></div>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.formula-head').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+}
+
+/* =========================================================================
+   COMMAND PALETTE (Cmd-K)
+   ========================================================================= */
+let cmdkItems = [];
+let cmdkActiveIdx = 0;
+
+function setupCommandPalette(){
+  document.getElementById('cmdk-open').addEventListener('click', openCmdK);
+  document.getElementById('cmdk-close').addEventListener('click', closeCmdK);
+  document.getElementById('cmdk-backdrop').addEventListener('click', e => {
+    if (e.target === document.getElementById('cmdk-backdrop')) closeCmdK();
+  });
+  const input = document.getElementById('cmdk-input');
+  input.addEventListener('input', renderCmdK);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); cmdkMove(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkMove(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); cmdkPick(); }
+  });
+}
+
+function openCmdK(){
+  document.getElementById('cmdk-backdrop').classList.add('open');
+  const input = document.getElementById('cmdk-input');
+  input.value = '';
+  renderCmdK();
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeCmdK(){
+  document.getElementById('cmdk-backdrop').classList.remove('open');
+}
+
+function buildCmdKCorpus(){
+  const items = [];
+  const sections = [
+    {sec:'dashboard', label:'Dashboard', icon:'i-dashboard'},
+    {sec:'grades', label:'Grades', icon:'i-target'},
+    {sec:'revision', label:'Revision', icon:'i-check-list'},
+    {sec:'journal', label:'Study Log', icon:'i-book'},
+    {sec:'papers', label:'Past Papers', icon:'i-doc'},
+    {sec:'practice', label:'Practice', icon:'i-timer'},
+    {sec:'analytics', label:'Analytics', icon:'i-arrow-up'},
+    {sec:'achievements', label:'Achievements', icon:'i-target'},
+    {sec:'settings', label:'Settings', icon:'i-gear'},
+  ];
+  sections.forEach(s => items.push({ group:'Section', label:s.label, icon:s.icon, action:() => switchSec(s.sec) }));
+
+  const actions = [
+    {label:'Start Pomodoro', icon:'i-play', action:() => { switchSec('dashboard'); pomoStartPause(); document.getElementById('pomo-panel').classList.add('open'); }},
+    {label:'Save today\'s study log', icon:'i-save', action:() => switchSec('journal')},
+    {label:'Log a past paper', icon:'i-save', action:() => switchSec('papers')},
+    {label:'Toggle theme', icon:'i-sun', action:() => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; applyTheme(); save(); }},
+    {label:'Export data', icon:'i-download', action:exportData},
+  ];
+  actions.forEach(a => items.push({ group:'Action', label:a.label, icon:a.icon, action:a.action }));
+
+  Object.keys(TOPICS).forEach(subj => {
+    TOPICS[subj].forEach((topic, ti) => {
+      items.push({
+        group:`${SN[subj]} · Topic`,
+        label: topic,
+        icon: 'i-check-list',
+        action: () => {
+          switchSec('revision');
+          setTimeout(() => {
+            const card = document.querySelector(`.topic-card[data-tid="${subj}_${ti}"]`);
+            if (card) { card.classList.add('open'); card.scrollIntoView({behavior:'smooth', block:'center'}); }
+          }, 150);
+        }
+      });
+    });
+  });
+  return items;
+}
+
+function renderCmdK(){
+  const q = document.getElementById('cmdk-input').value.trim().toLowerCase();
+  const corpus = buildCmdKCorpus();
+  cmdkItems = q
+    ? corpus.filter(item => item.label.toLowerCase().includes(q) || item.group.toLowerCase().includes(q))
+    : corpus.slice(0, 25);
+  cmdkActiveIdx = 0;
+  const list = document.getElementById('cmdk-list');
+  if (!cmdkItems.length) {
+    list.innerHTML = '<div class="cmdk-empty">No matches</div>';
+    document.getElementById('cmdk-count').textContent = '';
+    return;
+  }
+  let currentGroup = '';
+  let html = '';
+  cmdkItems.forEach((item, i) => {
+    if (item.group !== currentGroup) {
+      currentGroup = item.group;
+      html += `<div class="cmdk-group">${escapeHtml(currentGroup)}</div>`;
+    }
+    html += `<div class="cmdk-item ${i === 0 ? 'cmdk-active' : ''}" data-cmdk-idx="${i}">
+      <svg class="ico ico-sm"><use href="#${item.icon}"/></svg>
+      <span>${escapeHtml(item.label)}</span>
+      <span class="cmdk-item-meta">${escapeHtml(item.group)}</span>
+    </div>`;
+  });
+  list.innerHTML = html;
+  list.querySelectorAll('[data-cmdk-idx]').forEach(el => {
+    el.addEventListener('mouseenter', () => { cmdkActiveIdx = parseInt(el.dataset.cmdkIdx); cmdkRefreshActive(); });
+    el.addEventListener('click', () => { cmdkActiveIdx = parseInt(el.dataset.cmdkIdx); cmdkPick(); });
+  });
+  document.getElementById('cmdk-count').textContent = `${cmdkItems.length} result${cmdkItems.length !== 1 ? 's' : ''}`;
+}
+
+function cmdkMove(delta){
+  cmdkActiveIdx = (cmdkActiveIdx + delta + cmdkItems.length) % cmdkItems.length;
+  cmdkRefreshActive();
+}
+
+function cmdkRefreshActive(){
+  document.querySelectorAll('.cmdk-item').forEach((el, i) => el.classList.toggle('cmdk-active', i === cmdkActiveIdx));
+  const active = document.querySelector('.cmdk-item.cmdk-active');
+  if (active) active.scrollIntoView({ block:'nearest' });
+}
+
+function cmdkPick(){
+  const item = cmdkItems[cmdkActiveIdx];
+  if (!item) return;
+  closeCmdK();
+  try { item.action(); } catch(e) { console.error(e); }
+}
+
+/* =========================================================================
+   NOTIFICATIONS
+   ========================================================================= */
+let notifTimer = null;
+
+function setupNotifications(){
+  const btn = document.getElementById('notif-btn');
+  const time = document.getElementById('notif-time');
+  if (!btn) return;
+  time.value = state.notifTime || '20:00';
+  time.addEventListener('change', () => { state.notifTime = time.value; save(); scheduleNotification(); });
+  btn.addEventListener('click', toggleNotifications);
+  updateNotifButton();
+  if (state.notifEnabled && 'Notification' in window && Notification.permission === 'granted') {
+    scheduleNotification();
+  }
+}
+
+function updateNotifButton(){
+  const btn = document.getElementById('notif-btn');
+  const enabled = !!state.notifEnabled && (typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  btn.textContent = enabled ? 'Disable' : 'Enable';
+  btn.style.borderColor = enabled ? 'var(--accent)' : '';
+  btn.style.color = enabled ? 'var(--accent)' : '';
+}
+
+async function toggleNotifications(){
+  if (!('Notification' in window)) { toast('Notifications not supported in this browser'); return; }
+  if (state.notifEnabled) {
+    state.notifEnabled = false;
+    if (notifTimer) { clearTimeout(notifTimer); notifTimer = null; }
+    save(); updateNotifButton(); toast('Reminders off');
+    return;
+  }
+  const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if (perm !== 'granted') { toast('Permission denied'); return; }
+  state.notifEnabled = true;
+  save(); updateNotifButton();
+  scheduleNotification();
+  toast('Reminders on');
+}
+
+function scheduleNotification(){
+  if (notifTimer) clearTimeout(notifTimer);
+  if (!state.notifEnabled) return;
+  const [h, m] = (state.notifTime || '20:00').split(':').map(Number);
+  const now = new Date();
+  const target = new Date(); target.setHours(h, m, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  const delay = target - now;
+  notifTimer = setTimeout(fireNotification, delay);
+}
+
+function fireNotification(){
+  const today = todayKey();
+  const studiedToday = (state.dayMinutes || {})[today] > 0;
+  if (!studiedToday && 'Notification' in window && Notification.permission === 'granted') {
+    new Notification('Adi.Study reminder', {
+      body: `Don't break your ${calcStreak()}-day streak — log a session.`,
+      icon: 'icon-192.png',
+      tag: 'adi-daily',
+    });
+  }
+  scheduleNotification(); // schedule tomorrow
 }
 
 const CONFIDENCE_STALE = { 1: 3, 2: 5, 3: 10, 4: 14, 5: 21 }; // days until stale per confidence level
@@ -308,6 +895,9 @@ function bootApp(){
   setupAchievements();
   setupGoals();
   setupAnalytics();
+  setupPractice();
+  setupCommandPalette();
+  setupNotifications();
   setupSettings();
   setupPomodoro();
   setupKeyboard();
@@ -326,6 +916,7 @@ function renderAll(){
   renderDashboard();
   renderGoals();
   renderAnalytics();
+  renderEsatBank();
   renderAchievements();
   renderPomodoro();
 }
@@ -377,9 +968,18 @@ function switchSec(id){
 
 function setupKeyboard(){
   document.addEventListener('keydown', e => {
+    // Cmd/Ctrl + K opens the command palette from anywhere
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openCmdK();
+      return;
+    }
+    if (e.key === 'Escape') {
+      toggleDrawer(false);
+      closeCmdK();
+    }
     if (e.target.matches('input, textarea, select')) return;
-    if (e.key === 'Escape') toggleDrawer(false);
-    const map = {'1':'dashboard','2':'grades','3':'revision','4':'journal','5':'papers','6':'settings'};
+    const map = {'1':'dashboard','2':'grades','3':'revision','4':'journal','5':'papers','6':'practice','7':'analytics','8':'settings'};
     if (map[e.key]) switchSec(map[e.key]);
   });
 }
