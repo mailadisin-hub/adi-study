@@ -801,8 +801,32 @@ function initAuth(){
   try {
     firebase.initializeApp(window.FIREBASE_CONFIG);
     window.db = firebase.firestore();
-    firebase.firestore().enablePersistence({synchronizeTabs:true}).catch(()=>{});
+    // Single-tab persistence only. Multi-tab sync is unstable when
+    // content blockers interrupt the Firestore handshake — it
+    // corrupts IndexedDB and throws "Unexpected state" assertions.
+    window.db.enablePersistence().catch(err => {
+      console.warn('Firestore offline persistence unavailable:', err.code);
+    });
   } catch(e) { console.error(e); }
+
+  // Suppress Firestore internal-assertion crashes so the rest of the
+  // app stays usable; user gets a clear offline indicator instead.
+  window.addEventListener('error', e => {
+    const msg = String(e.message || '');
+    if (msg.includes('FIRESTORE') && msg.includes('INTERNAL ASSERTION')) {
+      e.preventDefault();
+      setSync('offline');
+      console.warn('Firestore assertion suppressed — running in offline mode');
+      return false;
+    }
+  });
+  window.addEventListener('unhandledrejection', e => {
+    const reason = String(e.reason && (e.reason.message || e.reason));
+    if (reason.includes('FIRESTORE') && reason.includes('INTERNAL ASSERTION')) {
+      e.preventDefault();
+      setSync('offline');
+    }
+  });
 
   firebase.auth().onAuthStateChanged(user => {
     if (user) {
