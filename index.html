@@ -148,6 +148,14 @@ a{color:inherit;text-decoration:none}
 .gate-err{color:var(--bad);font-size:var(--fs-12);margin-top:var(--s-2);min-height:18px}
 .gate-foot{margin-top:var(--s-4);font-size:var(--fs-12);color:var(--text-3);text-align:center}
 .gate-foot a{color:var(--accent);cursor:pointer;font-weight:500}
+.gate-tabs{display:flex;gap:var(--s-1);background:var(--surface-2);border-radius:var(--r-md);padding:4px;margin-bottom:var(--s-4)}
+.gate-tab{flex:1;padding:8px;border-radius:var(--r-sm);font-size:var(--fs-13);font-weight:600;color:var(--text-3);transition:all var(--t-fast)}
+.gate-tab:hover{color:var(--text-2)}
+.gate-tab.active{background:var(--bg-elev);color:var(--text)}
+.gate-roles{display:flex;gap:var(--s-2);margin-bottom:var(--s-3)}
+.gate-role{flex:1;padding:11px;border:1px solid var(--hairline);background:var(--surface-2);border-radius:var(--r-md);font-size:var(--fs-13);font-weight:500;color:var(--text-2);transition:all var(--t-fast)}
+.gate-role:hover{border-color:var(--hairline-2)}
+.gate-role.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 
 /* =========================================================================
    APP SHELL
@@ -818,13 +826,23 @@ a{color:inherit;text-decoration:none}
   <div class="gate-card">
     <div class="gate-logo">ADI<span>.</span>STUDY</div>
     <div class="gate-sub">A-Level · ESAT · Imperial</div>
-    <label for="g-email">Email</label>
-    <input type="email" id="g-email" autocomplete="email" inputmode="email" placeholder="you@example.com">
+    <div class="gate-tabs">
+      <button class="gate-tab active" data-gmode="signin">Sign In</button>
+      <button class="gate-tab" data-gmode="signup">Create Account</button>
+    </div>
+    <label for="g-user">Username</label>
+    <input type="text" id="g-user" autocomplete="username" placeholder="e.g. adi" autocapitalize="none" spellcheck="false">
     <label for="g-pass">Password</label>
     <input type="password" id="g-pass" autocomplete="current-password" placeholder="••••••••">
+    <div id="g-signup-extra" style="display:none">
+      <label>I am a…</label>
+      <div class="gate-roles">
+        <button class="gate-role active" data-role="student">📘 Student</button>
+        <button class="gate-role" data-role="tutor">🎓 Tutor</button>
+      </div>
+    </div>
     <button class="gate-btn" id="g-btn">Sign In</button>
     <div class="gate-err" id="g-err"></div>
-    <div class="gate-foot">First time on this device? <a id="g-create">Create account</a></div>
   </div>
 </div>
 
@@ -1225,6 +1243,27 @@ a{color:inherit;text-decoration:none}
         </div>
         <button class="btn-ghost" id="import-btn"><svg class="ico ico-sm"><use href="#i-upload"/></svg>Import</button>
         <input type="file" id="import-file" accept="application/json" style="display:none">
+      </div>
+      <div class="set-row">
+        <div>
+          <div class="set-label">Your invite code</div>
+          <div class="set-desc">Share with your <span class="role-counterpart">tutor</span> so they can link to your account.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <code id="invite-code-display" style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.12em;color:var(--accent);background:var(--surface-2);padding:6px 14px;border-radius:var(--r-sm);border:1px solid var(--hairline)">——————</code>
+          <button class="btn-ghost" id="copy-code-btn" style="padding:8px">Copy</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div>
+          <div class="set-label">Linked accounts</div>
+          <div class="set-desc">Enter your <span class="role-counterpart">tutor's</span> invite code to link.</div>
+          <div id="linked-list" style="margin-top:8px"></div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="link-code-input" placeholder="ABCDEF" maxlength="6" style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:9px 12px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.10em;width:120px;text-align:center;text-transform:uppercase;color:var(--text)">
+          <button class="btn-primary" id="link-btn" style="padding:9px 14px;font-size:var(--fs-12)">Link</button>
+        </div>
       </div>
       <div class="set-row">
         <div>

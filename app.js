@@ -142,26 +142,42 @@ let suppressSync = false;
 
 function defaultState(){
   return {
-    v: 2,
-    grades: {},                  // {mg_m,mp_m,mg_f,mp_f,mg_p,mp_p}
-    topics: {},                  // {'maths_3_0': {d:1, t:ts, c:1-5}}  c = confidence
+    v: 3,
+    // ===== Identity & linking =====
+    username: '',                // unique handle entered at signup
+    role: 'student',             // 'student' | 'tutor'
+    inviteCode: '',              // 6-char code others use to link to me
+    linkedTutorUid: null,        // student: my tutor's UID
+    students: [],                // tutor: UIDs of linked students
+    // ===== Tutor-side checklist (shown to linked students) =====
+    tutorChecklist: [],          // [{id, text, done}]
+    // ===== Tutor-controlled fields living on the STUDENT's doc =====
+    tutorTasks: [],              // [{id, text, due, done, addedBy, addedAt}]
+    tutorNotes: {},              // {subtopicId: 'note text'}
+    tutorImportant: {},          // {subtopicId: true}
+    tutorPaperComments: {},      // {paperId: 'comment'}
+    sessionLog: [],              // [{id, date, topicsCovered, homework, nextSession}]
+    homework: [],                // [{id, text, due, done, assignedBy}]
+    mission: '',                 // current agreed mission text
+    pendingMission: null,        // {by, when, text, note}
+    // ===== Student data (unchanged) =====
+    grades: {},
+    topics: {},
     xp: 0,
-    dayMinutes: {},              // {'2026-05-14': 210}
-    logs: [],                    // [{id,date,hours,mood,subj,notes,topics}]
-    papers: [],                  // [{id,date,subject,paperRef,score,maxScore,pct,grade,notes,questions}]
+    dayMinutes: {},
+    logs: [],
+    papers: [],
     pomo: {work:25, short:5, long:15, before:4},
     pomoToday: {date:'', completed:0, minutes:0},
-    pomoTotal: 0,                // lifetime completed pomodoros
-    freezes: 0,                  // available streak freezes
-    freezesEarned: 0,            // total ever earned (prevents double-award)
-    shieldedDays: [],            // ['2026-05-13'] — days protected by freeze
-    achievements: [],            // ['streak_3', ...]
-    goals: {},                   // { '2026-05-11': [{id,text,done}] } — keyed by ISO Monday
-    goalWeeksHit: 0,             // count of fully-completed weeks
-    planHours: {                 // weekly target hours per subject
-      Maths: 8, 'Further Maths': 6, Physics: 6, 'ESAT / TMUA': 2, 'Personal Statement': 1
-    },
-    esatBank: [],                // [{id,question,options:[],correct:0,subj}]
+    pomoTotal: 0,
+    freezes: 0,
+    freezesEarned: 0,
+    shieldedDays: [],
+    achievements: [],
+    goals: {},
+    goalWeeksHit: 0,
+    planHours: { Maths: 8, 'Further Maths': 6, Physics: 6, 'ESAT / TMUA': 2, 'Personal Statement': 1 },
+    esatBank: [],
     notifEnabled: false,
     notifTime: '20:00',
     theme: 'dark',
@@ -767,6 +783,13 @@ function saveLocal(){
   try { localStorage.setItem('adi_state', JSON.stringify(state)); } catch(e) {}
 }
 
+// Fields the TUTOR is allowed to write on a STUDENT's doc.
+// When a student saves, we exclude these so we don't overwrite tutor changes.
+const TUTOR_WRITTEN_FIELDS = [
+  'tutorTasks','tutorNotes','tutorImportant','tutorPaperComments',
+  'sessionLog','homework','mission','pendingMission'
+];
+
 function save(){
   checkAchievements();
   saveLocal();
@@ -774,7 +797,11 @@ function save(){
   setSync('syncing');
   saveTimer = setTimeout(() => {
     if (uid && !suppressSync && window.db) {
-      window.db.collection('users').doc(uid).set(state, {merge:false})
+      const payload = { ...state };
+      if (state.role === 'student') {
+        TUTOR_WRITTEN_FIELDS.forEach(f => delete payload[f]);
+      }
+      window.db.collection('users').doc(uid).set(payload, {merge:true})
         .then(() => setSync('ok'))
         .catch(err => { console.warn('Sync failed:', err); setSync('offline'); });
     } else {
@@ -828,61 +855,196 @@ function initAuth(){
     }
   });
 
-  firebase.auth().onAuthStateChanged(user => {
+  firebase.auth().onAuthStateChanged(async user => {
     if (user) {
       uid = user.uid;
-      document.getElementById('user-email-label').textContent = user.email || '';
+      // Load (or create) the user's profile to know their role
+      try {
+        const docRef = window.db.collection('users').doc(uid);
+        const snap = await docRef.get();
+        if (snap.exists) {
+          state = Object.assign(defaultState(), snap.data());
+          window.currentRole = state.role || 'student';
+        } else {
+          // Profile doesn't exist (corrupt signup state) — sign out
+          await firebase.auth().signOut();
+          return;
+        }
+      } catch (e) {
+        console.warn('Profile load failed:', e);
+        window.currentRole = 'student';
+      }
+      const labelEl = document.getElementById('user-email-label');
+      if (labelEl) labelEl.textContent = state.username || user.email || '';
       document.getElementById('gate').style.display = 'none';
       document.getElementById('app').classList.add('ready');
+      document.body.dataset.role = window.currentRole;
       attachCloud();
       bootApp();
     } else {
       uid = null;
+      window.currentRole = null;
+      delete document.body.dataset.role;
       if (unsubscribe) { unsubscribe(); unsubscribe = null; }
       document.getElementById('gate').style.display = 'flex';
       document.getElementById('app').classList.remove('ready');
     }
   });
 
-  document.getElementById('g-btn').addEventListener('click', signIn);
-  document.getElementById('g-create').addEventListener('click', signUp);
-  document.getElementById('g-pass').addEventListener('keydown', e => { if (e.key==='Enter') signIn(); });
+  // Gate mode + role state
+  let gateMode = 'signin';
+  let gateRole = 'student';
+  document.querySelectorAll('[data-gmode]').forEach(btn => btn.addEventListener('click', () => {
+    gateMode = btn.dataset.gmode;
+    document.querySelectorAll('[data-gmode]').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('g-signup-extra').style.display = gateMode === 'signup' ? 'block' : 'none';
+    document.getElementById('g-btn').textContent = gateMode === 'signup' ? 'Create Account' : 'Sign In';
+    document.getElementById('g-err').textContent = '';
+  }));
+  document.querySelectorAll('[data-role]').forEach(btn => btn.addEventListener('click', () => {
+    gateRole = btn.dataset.role;
+    document.querySelectorAll('[data-role]').forEach(b => b.classList.toggle('active', b === btn));
+  }));
+  document.getElementById('g-btn').addEventListener('click', () => gateMode === 'signin' ? signIn() : signUp(gateRole));
+  document.getElementById('g-pass').addEventListener('keydown', e => {
+    if (e.key === 'Enter') gateMode === 'signin' ? signIn() : signUp(gateRole);
+  });
   document.getElementById('signout-btn').addEventListener('click', () => firebase.auth().signOut());
 }
 
-function signIn(){
-  const email = document.getElementById('g-email').value.trim();
-  const pass = document.getElementById('g-pass').value;
-  if (!email || !pass) return showGateError('Email and password required.');
-  const btn = document.getElementById('g-btn');
-  btn.disabled = true; btn.textContent = 'Signing in…';
-  firebase.auth().signInWithEmailAndPassword(email, pass)
-    .catch(err => showGateError(prettyAuthError(err)))
-    .finally(() => { btn.disabled=false; btn.textContent='Sign In'; });
+/* Convert username <-> fake email (kept entirely server-side) */
+const USERNAME_DOMAIN = 'adi-study.local';
+function usernameToEmail(u){ return `${u}@${USERNAME_DOMAIN}`; }
+function cleanUsername(raw){
+  return String(raw || '').toLowerCase().trim().replace(/[^a-z0-9_.-]/g, '');
 }
 
-function signUp(){
-  const email = document.getElementById('g-email').value.trim();
+function signIn(){
+  const u = cleanUsername(document.getElementById('g-user').value);
   const pass = document.getElementById('g-pass').value;
-  if (!email || !pass) return showGateError('Enter email and password to create account.');
+  if (!u || !pass) return showGateError('Username and password required.');
+  const btn = document.getElementById('g-btn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  firebase.auth().signInWithEmailAndPassword(usernameToEmail(u), pass)
+    .catch(err => showGateError(prettyAuthError(err)))
+    .finally(() => { btn.disabled = false; btn.textContent = 'Sign In'; });
+}
+
+async function signUp(role){
+  const u = cleanUsername(document.getElementById('g-user').value);
+  const pass = document.getElementById('g-pass').value;
+  if (!u || u.length < 3) return showGateError('Username must be 3+ characters (letters, numbers, _ . - only).');
   if (pass.length < 6) return showGateError('Password must be at least 6 characters.');
+  if (!role) return showGateError('Pick student or tutor.');
   const btn = document.getElementById('g-btn');
   btn.disabled = true; btn.textContent = 'Creating…';
-  firebase.auth().createUserWithEmailAndPassword(email, pass)
-    .catch(err => showGateError(prettyAuthError(err)))
-    .finally(() => { btn.disabled=false; btn.textContent='Sign In'; });
+
+  try {
+    // Check username availability
+    const unameRef = window.db.collection('usernames').doc(u);
+    const unameSnap = await unameRef.get();
+    if (unameSnap.exists) {
+      showGateError('That username is taken.');
+      btn.disabled = false; btn.textContent = 'Create Account';
+      return;
+    }
+    // Create the auth user
+    const cred = await firebase.auth().createUserWithEmailAndPassword(usernameToEmail(u), pass);
+    const newUid = cred.user.uid;
+    // Create profile + claim username
+    const inviteCode = generateInviteCode();
+    const profile = Object.assign(defaultState(), {
+      username: u,
+      role,
+      inviteCode,
+      students: role === 'tutor' ? [] : undefined,
+      linkedTutorUid: role === 'student' ? null : undefined,
+      updatedAt: Date.now(),
+    });
+    await window.db.collection('users').doc(newUid).set(profile);
+    await unameRef.set({ uid: newUid });
+    await window.db.collection('inviteCodes').doc(inviteCode).set({ uid: newUid, role, username: u });
+  } catch (err) {
+    console.error(err);
+    showGateError(prettyAuthError(err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = gateMode === 'signup' ? 'Create Account' : 'Sign In';
+  }
+}
+
+function generateInviteCode(){
+  // 6 chars: easy to read aloud, no ambiguous characters (no 0, O, 1, I, L)
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
 }
 
 function showGateError(msg){ document.getElementById('g-err').textContent = msg; }
 
 function prettyAuthError(err){
   const code = err.code || '';
-  if (code.includes('user-not-found')) return 'No account with that email. Click "Create account".';
-  if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'Wrong password.';
-  if (code.includes('email-already-in-use')) return 'Email already registered — sign in instead.';
-  if (code.includes('invalid-email')) return 'That email looks invalid.';
+  if (code.includes('user-not-found')) return 'No account with that username. Switch to Create Account.';
+  if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'Wrong username or password.';
+  if (code.includes('email-already-in-use')) return 'That username is taken.';
+  if (code.includes('weak-password')) return 'Password must be at least 6 characters.';
   if (code.includes('network')) return 'Network error — check your connection.';
   return err.message || 'Authentication error.';
+}
+
+/* =========================================================================
+   LINKING — tutor <-> student via invite codes
+   ========================================================================= */
+async function linkByCode(code){
+  if (!uid || !window.db) return { ok:false, error:'Not signed in' };
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (c.length !== 6) return { ok:false, error:'Code must be 6 characters' };
+  if (c === state.inviteCode) return { ok:false, error:"That's your own code" };
+  try {
+    const snap = await window.db.collection('inviteCodes').doc(c).get();
+    if (!snap.exists) return { ok:false, error:'Invite code not found' };
+    const target = snap.data();
+    const myRole = state.role;
+    if (myRole === target.role) return { ok:false, error:`That code is for another ${target.role}` };
+    if (myRole === 'student') {
+      state.linkedTutorUid = target.uid;
+      await window.db.collection('users').doc(uid).update({ linkedTutorUid: target.uid });
+      await window.db.collection('users').doc(target.uid).update({
+        students: firebase.firestore.FieldValue.arrayUnion(uid)
+      });
+    } else {
+      // tutor linking to a student
+      state.students = [...(state.students || []), target.uid];
+      await window.db.collection('users').doc(uid).update({
+        students: firebase.firestore.FieldValue.arrayUnion(target.uid)
+      });
+      await window.db.collection('users').doc(target.uid).update({ linkedTutorUid: uid });
+    }
+    return { ok:true, username: target.username, role: target.role };
+  } catch (e) {
+    console.error(e);
+    return { ok:false, error: e.message || 'Link failed' };
+  }
+}
+
+async function unlinkPartner(partnerUid){
+  if (!uid || !window.db) return;
+  try {
+    if (state.role === 'student') {
+      state.linkedTutorUid = null;
+      await window.db.collection('users').doc(uid).update({ linkedTutorUid: null });
+      await window.db.collection('users').doc(partnerUid).update({
+        students: firebase.firestore.FieldValue.arrayRemove(uid)
+      });
+    } else {
+      state.students = (state.students || []).filter(s => s !== partnerUid);
+      await window.db.collection('users').doc(uid).update({
+        students: firebase.firestore.FieldValue.arrayRemove(partnerUid)
+      });
+      await window.db.collection('users').doc(partnerUid).update({ linkedTutorUid: null });
+    }
+  } catch (e) { console.error(e); }
 }
 
 function attachCloud(){
@@ -2332,6 +2494,69 @@ function setupSettings(){
   document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
   document.getElementById('import-file').addEventListener('change', importData);
   document.getElementById('reset-btn').addEventListener('click', resetData);
+
+  // Linking UI
+  document.getElementById('copy-code-btn').addEventListener('click', () => {
+    if (!state.inviteCode) return;
+    navigator.clipboard.writeText(state.inviteCode).then(() => toast('Copied'));
+  });
+  document.getElementById('link-btn').addEventListener('click', async () => {
+    const code = document.getElementById('link-code-input').value;
+    const btn = document.getElementById('link-btn');
+    btn.disabled = true; btn.textContent = 'Linking…';
+    const res = await linkByCode(code);
+    btn.disabled = false; btn.textContent = 'Link';
+    if (res.ok) {
+      document.getElementById('link-code-input').value = '';
+      toast(`Linked to ${res.username}`);
+      renderLinkedAccounts();
+    } else {
+      toast(res.error);
+    }
+  });
+  renderInviteCode();
+  renderLinkedAccounts();
+  // Role-aware copy in linking strings
+  document.querySelectorAll('.role-counterpart').forEach(el => {
+    el.textContent = state.role === 'tutor' ? 'student' : 'tutor';
+  });
+}
+
+function renderInviteCode(){
+  const el = document.getElementById('invite-code-display');
+  if (el) el.textContent = state.inviteCode || '——————';
+}
+
+async function renderLinkedAccounts(){
+  const wrap = document.getElementById('linked-list');
+  if (!wrap) return;
+  const partners = [];
+  if (state.role === 'student' && state.linkedTutorUid) partners.push(state.linkedTutorUid);
+  if (state.role === 'tutor') partners.push(...(state.students || []));
+  if (!partners.length) {
+    wrap.innerHTML = `<div style="font-size:var(--fs-12);color:var(--text-4);font-style:italic">No one linked yet.</div>`;
+    return;
+  }
+  // Fetch usernames for display
+  const rows = await Promise.all(partners.map(async pid => {
+    try {
+      const snap = await window.db.collection('users').doc(pid).get();
+      const data = snap.exists ? snap.data() : null;
+      return { uid: pid, username: data?.username || '—', role: data?.role || '?' };
+    } catch (e) { return { uid: pid, username: '(inaccessible)', role: '?' }; }
+  }));
+  wrap.innerHTML = rows.map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:8px 12px;margin-top:4px">
+      <span style="font-size:var(--fs-13);color:var(--text)"><strong>${escapeHtml(r.username)}</strong> <span style="color:var(--text-4);font-size:var(--fs-11);text-transform:uppercase;letter-spacing:.06em;margin-left:6px">${r.role}</span></span>
+      <button class="le-del" data-unlink="${r.uid}" aria-label="Unlink">✕</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('[data-unlink]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Unlink this account?')) return;
+    await unlinkPartner(b.dataset.unlink);
+    renderLinkedAccounts();
+    toast('Unlinked');
+  }));
 }
 
 function exportData(){
