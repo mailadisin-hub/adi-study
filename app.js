@@ -858,21 +858,36 @@ function initAuth(){
   firebase.auth().onAuthStateChanged(async user => {
     if (user) {
       uid = user.uid;
-      // Load (or create) the user's profile to know their role
+      // If a signup is currently writing the profile, wait for it.
+      // Without this, the auth-state change races ahead of profile-creation.
+      let waited = 0;
+      while (window._signupInProgress && waited < 40) {
+        await new Promise(r => setTimeout(r, 100));
+        waited++;
+      }
       try {
         const docRef = window.db.collection('users').doc(uid);
-        const snap = await docRef.get();
+        let snap = await docRef.get();
+        // Brief retry loop — sometimes Firestore needs a moment after a fresh signup
+        let tries = 0;
+        while (!snap.exists && tries < 10) {
+          await new Promise(r => setTimeout(r, 200));
+          snap = await docRef.get();
+          tries++;
+        }
         if (snap.exists) {
           state = Object.assign(defaultState(), snap.data());
           window.currentRole = state.role || 'student';
         } else {
-          // Profile doesn't exist (corrupt signup state) — sign out
+          console.warn('Profile missing — signing out');
           await firebase.auth().signOut();
           return;
         }
       } catch (e) {
         console.warn('Profile load failed:', e);
-        window.currentRole = 'student';
+        showGateError('Could not load profile. Check Firestore rules.');
+        await firebase.auth().signOut();
+        return;
       }
       const labelEl = document.getElementById('user-email-label');
       if (labelEl) labelEl.textContent = state.username || user.email || '';
@@ -938,6 +953,7 @@ async function signUp(role){
   if (!role) return showGateError('Pick student or tutor.');
   const btn = document.getElementById('g-btn');
   btn.disabled = true; btn.textContent = 'Creating…';
+  window._signupInProgress = true;
 
   try {
     // Check username availability
@@ -945,31 +961,31 @@ async function signUp(role){
     const unameSnap = await unameRef.get();
     if (unameSnap.exists) {
       showGateError('That username is taken.');
-      btn.disabled = false; btn.textContent = 'Create Account';
       return;
     }
-    // Create the auth user
+    // Create the auth user (auto-signs them in; onAuthStateChanged will wait on _signupInProgress)
     const cred = await firebase.auth().createUserWithEmailAndPassword(usernameToEmail(u), pass);
     const newUid = cred.user.uid;
-    // Create profile + claim username
+    // Create profile + claim username + register invite code, all while still signed in
     const inviteCode = generateInviteCode();
     const profile = Object.assign(defaultState(), {
       username: u,
       role,
       inviteCode,
-      students: role === 'tutor' ? [] : undefined,
-      linkedTutorUid: role === 'student' ? null : undefined,
+      students: role === 'tutor' ? [] : [],
+      linkedTutorUid: role === 'student' ? null : null,
       updatedAt: Date.now(),
     });
     await window.db.collection('users').doc(newUid).set(profile);
     await unameRef.set({ uid: newUid });
     await window.db.collection('inviteCodes').doc(inviteCode).set({ uid: newUid, role, username: u });
   } catch (err) {
-    console.error(err);
+    console.error('Signup failed:', err);
     showGateError(prettyAuthError(err));
   } finally {
+    window._signupInProgress = false;
     btn.disabled = false;
-    btn.textContent = gateMode === 'signup' ? 'Create Account' : 'Sign In';
+    btn.textContent = 'Create Account';
   }
 }
 
