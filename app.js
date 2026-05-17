@@ -801,6 +801,8 @@ function save(){
       if (state.role === 'student') {
         TUTOR_WRITTEN_FIELDS.forEach(f => delete payload[f]);
       }
+      // Firestore rejects undefined values — drop any
+      Object.keys(payload).forEach(k => { if (payload[k] === undefined) delete payload[k]; });
       window.db.collection('users').doc(uid).set(payload, {merge:true})
         .then(() => setSync('ok'))
         .catch(err => { console.warn('Sync failed:', err); setSync('offline'); });
@@ -972,10 +974,12 @@ async function signUp(role){
       username: u,
       role,
       inviteCode,
-      students: role === 'tutor' ? [] : [],
-      linkedTutorUid: role === 'student' ? null : null,
+      students: [],
+      linkedTutorUid: null,
       updatedAt: Date.now(),
     });
+    // Firestore rejects undefined — strip any defensively
+    Object.keys(profile).forEach(k => { if (profile[k] === undefined) delete profile[k]; });
     await window.db.collection('users').doc(newUid).set(profile);
     await unameRef.set({ uid: newUid });
     await window.db.collection('inviteCodes').doc(inviteCode).set({ uid: newUid, role, username: u });
