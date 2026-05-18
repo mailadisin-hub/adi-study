@@ -1106,7 +1106,11 @@ function bootApp(){
   setupNotifications();
   setupSettings();
   setupPomodoro();
+  setupTutorChecklist();
+  setupTutorDashboard();
   setupKeyboard();
+  // For tutors, dashboard defaults to "students" view; we still call switchSec to
+  // ensure correct section is visible if state was deep-linked elsewhere
   renderAll();
   checkAchievements();
 }
@@ -1125,6 +1129,9 @@ function renderAll(){
   renderEsatBank();
   renderAchievements();
   renderPomodoro();
+  renderTutorChecklist();
+  renderStudentList();
+  loadAndRenderTutorChecklistForStudent();
 }
 
 /* =========================================================================
@@ -2467,6 +2474,170 @@ function renderChartMood(){
     html += `<text x="${(x + barW/2).toFixed(1)}" y="${(H - 10).toFixed(1)}" text-anchor="middle" font-family="Inter" font-size="10" fill="var(--text-4)">${labels[d.mood]} (${d.n})</text>`;
   });
   svg.innerHTML = html;
+}
+
+/* =========================================================================
+   TUTOR CHECKLIST (lives on tutor's own doc, read by linked students)
+   ========================================================================= */
+function setupTutorChecklist(){
+  const addBtn = document.getElementById('cl-add-btn');
+  const input = document.getElementById('cl-new-input');
+  if (!addBtn || !input) return;
+  addBtn.addEventListener('click', addChecklistItem);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') addChecklistItem(); });
+}
+
+function addChecklistItem(){
+  if (state.role !== 'tutor') return;
+  const input = document.getElementById('cl-new-input');
+  const text = input.value.trim();
+  if (!text) return;
+  state.tutorChecklist = state.tutorChecklist || [];
+  state.tutorChecklist.push({ id: Date.now() + Math.random(), text, done: false });
+  input.value = '';
+  renderTutorChecklist();
+  save();
+}
+
+function toggleChecklistItem(id){
+  if (state.role !== 'tutor') return;
+  const item = (state.tutorChecklist || []).find(x => x.id === id);
+  if (!item) return;
+  item.done = !item.done;
+  renderTutorChecklist();
+  save();
+}
+
+function deleteChecklistItem(id){
+  if (state.role !== 'tutor') return;
+  state.tutorChecklist = (state.tutorChecklist || []).filter(x => x.id !== id);
+  renderTutorChecklist();
+  save();
+}
+
+function renderTutorChecklist(){
+  const wrap = document.getElementById('cl-list');
+  if (!wrap) return;
+  if (state.role !== 'tutor') return;
+  const items = state.tutorChecklist || [];
+  if (!items.length) {
+    wrap.innerHTML = '<div class="empty-msg">No tasks yet — add one above.</div>';
+    return;
+  }
+  wrap.innerHTML = items.map(it => `
+    <div class="checklist-row ${it.done ? 'done' : ''}" data-cid="${it.id}">
+      <div class="checklist-check" data-cltoggle="${it.id}">✓</div>
+      <div class="checklist-text">${escapeHtml(it.text)}</div>
+      <button class="checklist-del" data-cldel="${it.id}" aria-label="Delete">✕</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('[data-cltoggle]').forEach(el => el.addEventListener('click', () => toggleChecklistItem(parseFloat(el.dataset.cltoggle))));
+  wrap.querySelectorAll('[data-cldel]').forEach(el => el.addEventListener('click', () => deleteChecklistItem(parseFloat(el.dataset.cldel))));
+}
+
+/* =========================================================================
+   TUTOR DASHBOARD — student list
+   ========================================================================= */
+function setupTutorDashboard(){
+  // No persistent setup — students list refreshes on every render
+}
+
+async function renderStudentList(){
+  const wrap = document.getElementById('students-list');
+  if (!wrap || state.role !== 'tutor') return;
+  const studentUids = state.students || [];
+  if (!studentUids.length) {
+    wrap.innerHTML = '<div class="empty-msg">No students linked yet. Ask your student for their invite code and add it in Settings.</div>';
+    return;
+  }
+  // Fetch student snapshots
+  const rows = await Promise.all(studentUids.map(async uid => {
+    try {
+      const snap = await window.db.collection('users').doc(uid).get();
+      if (!snap.exists) return null;
+      const d = snap.data();
+      return {
+        uid,
+        username: d.username || '—',
+        xp: d.xp || 0,
+        streak: (d.dayMinutes ? Object.keys(d.dayMinutes).length : 0),
+        topicsDone: Object.values(d.topics || {}).filter(t => t && t.d).length,
+        papers: (d.papers || []).length,
+        lastActivity: d.updatedAt || 0,
+      };
+    } catch (e) { return null; }
+  }));
+  const valid = rows.filter(Boolean);
+  wrap.innerHTML = valid.map(s => {
+    const initial = (s.username || '?').slice(0,1).toUpperCase();
+    const lastSeen = s.lastActivity ? relativeTime(s.lastActivity) : 'never';
+    return `
+      <div class="student-card" data-sviewuid="${s.uid}">
+        <div class="student-card-l">
+          <div class="student-avatar">${initial}</div>
+          <div style="min-width:0;flex:1">
+            <div class="student-name">${escapeHtml(s.username)}</div>
+            <div class="student-meta">Last active ${escapeHtml(lastSeen)}</div>
+          </div>
+        </div>
+        <div class="student-stats">
+          <div><strong>${s.xp}</strong>XP</div>
+          <div><strong>${s.topicsDone}</strong>topics</div>
+          <div><strong>${s.papers}</strong>papers</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  // Click handler placeholder — commit 3 will activate this with a proper "view student" mode
+  wrap.querySelectorAll('[data-sviewuid]').forEach(el => el.addEventListener('click', () => {
+    toast('Per-student view coming in next update');
+  }));
+}
+
+function relativeTime(ts){
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+/* =========================================================================
+   STUDENT VIEW OF TUTOR'S CHECKLIST
+   ========================================================================= */
+async function loadAndRenderTutorChecklistForStudent(){
+  if (state.role !== 'student' || !state.linkedTutorUid) {
+    const card = document.getElementById('tutor-checklist-card');
+    if (card) card.style.display = 'none';
+    return;
+  }
+  const card = document.getElementById('tutor-checklist-card');
+  const view = document.getElementById('tutor-checklist-view');
+  const meta = document.getElementById('tutor-checklist-meta');
+  if (!card || !view) return;
+  try {
+    const snap = await window.db.collection('users').doc(state.linkedTutorUid).get();
+    if (!snap.exists) { card.style.display = 'none'; return; }
+    const t = snap.data();
+    const items = t.tutorChecklist || [];
+    card.style.display = 'block';
+    if (meta) meta.textContent = `From ${escapeHtml(t.username || 'tutor')}`;
+    if (!items.length) {
+      view.innerHTML = '<div class="tutor-checklist-empty">Your tutor hasn\'t added anything yet.</div>';
+      return;
+    }
+    view.innerHTML = items.map(it => `
+      <div class="checklist-row readonly ${it.done ? 'done' : ''}">
+        <div class="checklist-check">${it.done ? '✓' : ''}</div>
+        <div class="checklist-text">${escapeHtml(it.text)}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    card.style.display = 'none';
+  }
 }
 
 /* =========================================================================
