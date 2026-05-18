@@ -1668,10 +1668,25 @@ function computeWeakAreas(){
         }
       }
 
-      if (score > 6) out.push({ score, subj, topic, reasons });
+      if (score > 6) out.push({ score, subj, topic, ti, reasons });
     });
   });
   return out.sort((a,b) => b.score - a.score).slice(0, 5);
+}
+
+function openTopicInRevision(subj, ti){
+  switchSec('revision');
+  setTimeout(() => {
+    const card = document.querySelector(`.topic-card[data-tid="${subj}_${ti}"]`);
+    if (card) {
+      card.classList.add('open');
+      card.scrollIntoView({ behavior:'smooth', block:'center' });
+      // Brief highlight pulse to draw the eye
+      card.style.transition = 'box-shadow .4s';
+      card.style.boxShadow = '0 0 0 2px var(--accent)';
+      setTimeout(() => { card.style.boxShadow = ''; }, 900);
+    }
+  }, 200);
 }
 
 function renderWeakAreas(){
@@ -1683,7 +1698,7 @@ function renderWeakAreas(){
     return;
   }
   wrap.innerHTML = items.map((w, i) => `
-    <div class="weak-item">
+    <div class="weak-item" data-wjump="${w.subj}_${w.ti}" role="button" tabindex="0">
       <div class="weak-rank">${i+1}</div>
       <div class="weak-body">
         <div class="weak-name"><span style="color:${SC[w.subj]};font-weight:700;font-size:var(--fs-11);letter-spacing:.08em;text-transform:uppercase;margin-right:6px">${SN[w.subj].split(' ')[0]}</span>${escapeHtml(w.topic)}</div>
@@ -1692,6 +1707,19 @@ function renderWeakAreas(){
       <div class="weak-score" title="Weakness score">${Math.round(w.score)}</div>
     </div>
   `).join('');
+  wrap.querySelectorAll('[data-wjump]').forEach(el => {
+    el.addEventListener('click', () => {
+      const [subj, ti] = el.dataset.wjump.split('_');
+      openTopicInRevision(subj, parseInt(ti));
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const [subj, ti] = el.dataset.wjump.split('_');
+        openTopicInRevision(subj, parseInt(ti));
+      }
+    });
+  });
 }
 
 function renderSnapshot(){
@@ -1739,8 +1767,10 @@ function renderDueList(){
     wrap.innerHTML = '<div class="empty-msg">All studied subtopics still fresh</div>';
     return;
   }
-  wrap.innerHTML = due.slice(0, 8).map(d => `
-    <div class="due-item">
+  wrap.innerHTML = due.slice(0, 8).map(d => {
+    const [subj, tiStr] = d.id.split('_');
+    return `
+    <div class="due-item" data-djump="${subj}_${tiStr}" role="button" tabindex="0" style="cursor:pointer">
       <div style="min-width:0;flex:1">
         <div style="display:flex;align-items:center;gap:6px">
           <span class="subt-conf c${d.conf}" style="width:10px;height:10px;border-width:1.5px"></span>
@@ -1750,7 +1780,21 @@ function renderDueList(){
         <div style="font-size:var(--fs-11);color:var(--text-4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(d.topic)}</div>
       </div>
       <div class="due-meta ${d.age >= 28 ? 'urgent' : ''}">${d.age}d</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('[data-djump]').forEach(el => {
+    el.addEventListener('click', () => {
+      const [subj, ti] = el.dataset.djump.split('_');
+      openTopicInRevision(subj, parseInt(ti));
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const [subj, ti] = el.dataset.djump.split('_');
+        openTopicInRevision(subj, parseInt(ti));
+      }
+    });
+  });
 }
 
 function renderDashSubjBars(){
